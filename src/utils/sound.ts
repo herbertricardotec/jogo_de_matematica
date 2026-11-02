@@ -71,11 +71,29 @@ class SoundEngine {
     if (this.muted || !this.voiceEnabled || typeof window === 'undefined') return;
     if (!('speechSynthesis' in window)) return;
 
+    // Never read module labels/subtitles aloud per user preference
+    const forbiddenModulePhrases = [
+      'Módulo 1',
+      'Módulo 2',
+      'Módulo 3',
+      'Módulo 4',
+      'Atividades com os blocos 1 a 5',
+      'Operação de Adição',
+      'Operação de Subtração',
+      'Multiplicação × e Divisão ÷',
+    ];
+    let sanitizedText = text;
+    for (const phrase of forbiddenModulePhrases) {
+      if (sanitizedText.includes(phrase)) {
+        return;
+      }
+    }
+
     try {
       if (interrupt) {
         window.speechSynthesis.cancel();
       }
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(sanitizedText);
       utterance.lang = 'pt-BR';
       utterance.rate = 1.04;
       utterance.pitch = 1.1;

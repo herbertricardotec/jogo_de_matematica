@@ -20,84 +20,432 @@ export function parseAvatarDescriptor(avatarId: string): {
 } {
   if (avatarId && avatarId.includes('|')) {
     const [charPart, colorPart, accPart] = avatarId.split('|');
+    const mappedChar = normalizeLegacyCharacter(charPart as AvatarBaseCharacterId);
     return {
-      character: (charPart as AvatarBaseCharacterId) || 'cube_happy',
+      character: mappedChar,
       color: colorPart || '#007AFF',
       accessory: (accPart as AvatarAccessoryId) || 'none',
     };
   }
 
-  // Backward compatibility for simple avatar IDs
-  switch (avatarId) {
+  return {
+    character: normalizeLegacyCharacter(avatarId as AvatarBaseCharacterId),
+    color: '#007AFF',
+    accessory: 'none',
+  };
+}
+
+function normalizeLegacyCharacter(charId: string): AvatarBaseCharacterId {
+  switch (charId) {
+    case 'leo_infantil_m':
+    case 'bia_infantil_f':
+    case 'kaua_infantil_m':
+    case 'sofia_infantil_f':
+    case 'lucas_teen_m':
+    case 'maya_teen_f':
+    case 'gui_teen_m':
+    case 'lara_teen_f':
+      return charId;
     case 'boy_blue':
-      return { character: 'boy_blue', color: '#007AFF', accessory: 'none' };
+    case 'cube_happy':
+      return 'leo_infantil_m';
     case 'girl_pink':
-      return { character: 'girl_pink', color: '#EC4899', accessory: 'crown' };
+    case 'cat_astro':
+      return 'bia_infantil_f';
+    case 'fox_scientist':
     case 'fox':
-      return { character: 'fox_scientist', color: '#F97316', accessory: 'glasses' };
+      return 'lucas_teen_m';
+    case 'owl_student':
+      return 'maya_teen_f';
+    case 'panda_genius':
     case 'tiger':
-      return { character: 'panda_genius', color: '#22C55E', accessory: 'cap' };
+      return 'kaua_infantil_m';
+    case 'robo_calc':
+      return 'lara_teen_f';
     default:
-      return { character: 'cube_happy', color: '#007AFF', accessory: 'cap' };
+      return 'leo_infantil_m';
   }
 }
 
+interface CharacterStyleProfile {
+  skinBase: string;
+  skinShadow: string;
+  skinHighlight: string;
+  hairColor: string;
+  hairHighlight: string;
+  shirtDefault: string;
+  hairStyle:
+    | 'boy_side_part'
+    | 'girl_top_bun'
+    | 'boy_curly_fade'
+    | 'girl_curly_puff'
+    | 'teen_wavy_curls'
+    | 'teen_long_side'
+    | 'teen_curly_top'
+    | 'teen_bob_cut';
+  outfitStyle: 'tshirt' | 'striped' | 'hoodie' | 'denim_jacket' | 'collar_stripe';
+  hasBuiltInGlasses?: boolean;
+}
+
+const CHARACTER_PROFILES: Record<string, CharacterStyleProfile> = {
+  // 1. Léo (Infantil Masculino - Menino sorridente de cabelo castanho penteado, inspirado na Imagem 2)
+  leo_infantil_m: {
+    skinBase: '#F6C09E',
+    skinShadow: '#DF9B74',
+    skinHighlight: '#FFE0C8',
+    hairColor: '#5C2C16',
+    hairHighlight: '#8B4513',
+    shirtDefault: '#F97316',
+    hairStyle: 'boy_side_part',
+    outfitStyle: 'tshirt',
+  },
+  // 2. Bia (Infantil Feminino - Menina alegre de cabelo ruivo com coque alto, inspirada na Imagem 2)
+  bia_infantil_f: {
+    skinBase: '#F7C6A6',
+    skinShadow: '#E2A27E',
+    skinHighlight: '#FFE4D0',
+    hairColor: '#C85A28',
+    hairHighlight: '#EA7B44',
+    shirtDefault: '#EC4899',
+    hairStyle: 'girl_top_bun',
+    outfitStyle: 'tshirt',
+  },
+  // 3. Kauã (Infantil Masculino - Menino negro sorridente de cabelo black curto, inspirado na Imagem 2)
+  kaua_infantil_m: {
+    skinBase: '#8D5538',
+    skinShadow: '#693B22',
+    skinHighlight: '#AB6E4E',
+    hairColor: '#1C1411',
+    hairHighlight: '#3B2F2A',
+    shirtDefault: '#F97316',
+    hairStyle: 'boy_curly_fade',
+    outfitStyle: 'tshirt',
+  },
+  // 4. Sofia (Infantil Feminino - Menina negra de cabelo cacheado volumoso, inspirada na Imagem 2)
+  sofia_infantil_f: {
+    skinBase: '#844D32',
+    skinShadow: '#5E331D',
+    skinHighlight: '#A36647',
+    hairColor: '#231712',
+    hairHighlight: '#463229',
+    shirtDefault: '#E15B64',
+    hairStyle: 'girl_curly_puff',
+    outfitStyle: 'tshirt',
+  },
+  // 5. Lucas (Adolescente Masculino - Cabelo cacheado ruivo, camiseta listrada e óculos redondos, inspirado na Imagem 2)
+  lucas_teen_m: {
+    skinBase: '#F4BE9B',
+    skinShadow: '#DC9A73',
+    skinHighlight: '#FFE0C9',
+    hairColor: '#9E431E',
+    hairHighlight: '#C96135',
+    shirtDefault: '#0284C7',
+    hairStyle: 'teen_wavy_curls',
+    outfitStyle: 'striped',
+    hasBuiltInGlasses: true,
+  },
+  // 6. Maya (Adolescente Feminino - Cabelo castanho longo, óculos e jaqueta jeans, inspirada na Imagem 2)
+  maya_teen_f: {
+    skinBase: '#F5C1A0',
+    skinShadow: '#DE9F79',
+    skinHighlight: '#FFE2CE',
+    hairColor: '#3B2316',
+    hairHighlight: '#633D28',
+    shirtDefault: '#007AFF',
+    hairStyle: 'teen_long_side',
+    outfitStyle: 'denim_jacket',
+    hasBuiltInGlasses: true,
+  },
+  // 7. Gui (Adolescente Masculino - Cabelo cacheado e moletom com capuz colorido, inspirado na Imagem 2)
+  gui_teen_m: {
+    skinBase: '#E5A97E',
+    skinShadow: '#C6855A',
+    skinHighlight: '#F7C6A1',
+    hairColor: '#241811',
+    hairHighlight: '#4A3427',
+    shirtDefault: '#EAB308',
+    hairStyle: 'teen_curly_top',
+    outfitStyle: 'hoodie',
+  },
+  // 8. Lara (Adolescente Feminino - Cabelo chanel castanho e blusa com faixa colorida, inspirada na Imagem 2)
+  lara_teen_f: {
+    skinBase: '#F6C3A3',
+    skinShadow: '#DF9F7A',
+    skinHighlight: '#FFE3D0',
+    hairColor: '#432717',
+    hairHighlight: '#6E4229',
+    shirtDefault: '#A855F7',
+    hairStyle: 'teen_bob_cut',
+    outfitStyle: 'collar_stripe',
+  },
+};
+
+/**
+ * 3D Clay / Pixar-Style Bust Avatar for Kids & Teens (Male & Female)
+ * Based on the 2nd reference image provided by the user.
+ */
 export const AvatarIcon: React.FC<AvatarIconProps> = ({ avatarId, className = 'w-11 h-11' }) => {
   const { character, color, accessory } = parseAvatarDescriptor(avatarId);
+  const profile = CHARACTER_PROFILES[character] || CHARACTER_PROFILES.leo_infantil_m;
   const uid = React.useId().replace(/:/g, '');
+  const outfitColor = color || profile.shirtDefault;
+
+  const renderBackHair = () => {
+    switch (profile.hairStyle) {
+      case 'girl_top_bun':
+        return (
+          <g>
+            {/* Top 3D Bun */}
+            <circle cx="32" cy="11" r="8.5" fill={profile.hairColor} />
+            <ellipse cx="30" cy="8.5" rx="4" ry="2" fill={profile.hairHighlight} fillOpacity="0.6" />
+            {/* Side Wavy Locks behind ears */}
+            <path
+              d="M17 26C14 33 15 41 20 43H44C49 41 50 33 47 26Z"
+              fill={profile.hairColor}
+            />
+          </g>
+        );
+      case 'girl_curly_puff':
+        return (
+          <g>
+            <circle cx="20" cy="19" r="8" fill={profile.hairColor} />
+            <circle cx="44" cy="19" r="8" fill={profile.hairColor} />
+            <circle cx="32" cy="14" r="9.5" fill={profile.hairColor} />
+            <circle cx="43" cy="34" r="6" fill={profile.hairColor} />
+          </g>
+        );
+      case 'teen_long_side':
+        return (
+          <path
+            d="M16 22C13 31 14 43 18 47H46C50 43 51 31 48 22Z"
+            fill={profile.hairColor}
+          />
+        );
+      case 'teen_bob_cut':
+        return (
+          <path
+            d="M15 24C13 33 14 42 20 44H44C50 42 51 33 49 24Z"
+            fill={profile.hairColor}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderFrontHair = () => {
+    switch (profile.hairStyle) {
+      case 'boy_side_part':
+        return (
+          <g>
+            <path
+              d="M18 25C17 14 25 10 35 11C43 11.5 47 16 46 25C43 19 36 17 28 18C23 18.5 20 21 18 25Z"
+              fill={profile.hairColor}
+            />
+            <path
+              d="M23 14C28 12 36 12.5 41 15"
+              stroke={profile.hairHighlight}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+          </g>
+        );
+      case 'girl_top_bun':
+        return (
+          <g>
+            <path
+              d="M18 26C18 16 25 13 32 13C39 13 46 16 46 26C42 20 36 18 32 18C28 18 22 20 18 26Z"
+              fill={profile.hairColor}
+            />
+            <path
+              d="M23 16C28 14 35 14 40 16"
+              stroke={profile.hairHighlight}
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </g>
+        );
+      case 'boy_curly_fade':
+        return (
+          <g>
+            <path
+              d="M18 24C18 13 24 10 32 10C40 10 46 13 46 24C43 19 38 18 32 18C26 18 21 19 18 24Z"
+              fill={profile.hairColor}
+            />
+            <circle cx="24" cy="14" r="3.5" fill={profile.hairColor} />
+            <circle cx="32" cy="13" r="4" fill={profile.hairColor} />
+            <circle cx="40" cy="14" r="3.5" fill={profile.hairColor} />
+          </g>
+        );
+      case 'girl_curly_puff':
+        return (
+          <g>
+            <circle cx="23" cy="16" r="5.5" fill={profile.hairColor} />
+            <circle cx="32" cy="14.5" r="6" fill={profile.hairColor} />
+            <circle cx="41" cy="16" r="5.5" fill={profile.hairColor} />
+            <circle cx="19" cy="21" r="4.5" fill={profile.hairColor} />
+            <circle cx="45" cy="21" r="4.5" fill={profile.hairColor} />
+          </g>
+        );
+      case 'teen_wavy_curls':
+        return (
+          <g>
+            <circle cx="22" cy="16" r="5" fill={profile.hairColor} />
+            <circle cx="29" cy="14" r="5.5" fill={profile.hairColor} />
+            <circle cx="36" cy="14.5" r="5.5" fill={profile.hairColor} />
+            <circle cx="42" cy="17" r="4.8" fill={profile.hairColor} />
+            <circle cx="26" cy="14" r="2.2" fill={profile.hairHighlight} fillOpacity="0.65" />
+            <circle cx="35" cy="14" r="2.2" fill={profile.hairHighlight} fillOpacity="0.65" />
+          </g>
+        );
+      case 'teen_long_side':
+        return (
+          <g>
+            <path
+              d="M17 27C17 15 24 12 33 12C41 12 47 16 47 27C43 20 36 17 27 18C22 19 19 23 17 27Z"
+              fill={profile.hairColor}
+            />
+            <path
+              d="M23 15C29 13 36 14 41 17"
+              stroke={profile.hairHighlight}
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </g>
+        );
+      case 'teen_curly_top':
+        return (
+          <g>
+            <circle cx="22" cy="16" r="4.8" fill={profile.hairColor} />
+            <circle cx="28" cy="13.5" r="5.2" fill={profile.hairColor} />
+            <circle cx="35" cy="13.5" r="5.2" fill={profile.hairColor} />
+            <circle cx="41" cy="16" r="4.8" fill={profile.hairColor} />
+          </g>
+        );
+      case 'teen_bob_cut':
+      default:
+        return (
+          <g>
+            <path
+              d="M17 26C17 15 24 12 32 12C40 12 47 15 47 26C43 20 37 18 32 18C27 18 21 20 17 26Z"
+              fill={profile.hairColor}
+            />
+            <path
+              d="M24 15C29 13.5 35 13.5 40 15"
+              stroke={profile.hairHighlight}
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </g>
+        );
+    }
+  };
+
+  const renderOutfit = () => {
+    switch (profile.outfitStyle) {
+      case 'striped':
+        return (
+          <g>
+            <path d="M12 60C13 47 21 44 32 44C43 44 51 47 52 60H12Z" fill="#F8FAFC" />
+            <path d="M15 50H49" stroke={outfitColor} strokeWidth="2.5" />
+            <path d="M13 55H51" stroke={outfitColor} strokeWidth="2.5" />
+            <path
+              d="M25 44C27 47 37 47 39 44"
+              stroke={outfitColor}
+              strokeWidth="2.2"
+              fill="none"
+            />
+          </g>
+        );
+      case 'denim_jacket':
+        return (
+          <g>
+            <path d="M12 60C13 47 21 44 32 44C43 44 51 47 52 60H12Z" fill={outfitColor} />
+            <path d="M26 44L28 60H36L38 44Z" fill="#F8FAFC" />
+            <path d="M23 44L26 51L29 45" fill="#1E3A8A" />
+            <path d="M41 44L38 51L35 45" fill="#1E3A8A" />
+          </g>
+        );
+      case 'hoodie':
+        return (
+          <g>
+            <path d="M12 60C13 47 21 44 32 44C43 44 51 47 52 60H12Z" fill="#78350F" />
+            <path d="M24 44L26 60H38L40 44Z" fill={outfitColor} />
+            <path
+              d="M21 45C24 49 40 49 43 45"
+              stroke="#FACC15"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              fill="none"
+            />
+          </g>
+        );
+      case 'collar_stripe':
+        return (
+          <g>
+            <path d="M12 60C13 47 21 44 32 44C43 44 51 47 52 60H12Z" fill="#FACC15" />
+            <rect x="14" y="52" width="36" height="4.5" fill={outfitColor} />
+          </g>
+        );
+      case 'tshirt':
+      default:
+        return (
+          <g>
+            <path d="M12 60C13 47 21 44 32 44C43 44 51 47 52 60H12Z" fill={outfitColor} />
+            <path
+              d="M25 44C27 47.5 37 47.5 39 44"
+              stroke="#FFFFFF"
+              strokeOpacity="0.4"
+              strokeWidth="2"
+              fill="none"
+            />
+          </g>
+        );
+    }
+  };
+
+  const showGlasses = accessory === 'glasses' || (accessory === 'none' && profile.hasBuiltInGlasses);
 
   const renderAccessory = () => {
     switch (accessory) {
       case 'cap':
-        // 3D Student Graduation Cap (Capelo)
+        // 3D Rounded Baseball Cap (like Row 1 Col 3 of Image 2)
         return (
           <g>
-            <polygon points="32,4 52,12 32,20 12,12" fill="#0F172A" stroke="#FFD600" strokeWidth="1.5" />
-            <rect x="21" y="16" width="22" height="5" rx="2" fill="#1E293B" />
-            <path d="M48 13V24" stroke="#FFD600" strokeWidth="2.5" strokeLinecap="round" />
-            <circle cx="48" cy="25" r="2.5" fill="#FFD600" />
-          </g>
-        );
-      case 'glasses':
-        // 3D Smart Glasses
-        return (
-          <g>
-            <rect x="13" y="25" width="16" height="12" rx="4" fill="rgba(56,189,248,0.28)" stroke="#0F172A" strokeWidth="3" />
-            <rect x="35" y="25" width="16" height="12" rx="4" fill="rgba(56,189,248,0.28)" stroke="#0F172A" strokeWidth="3" />
-            <line x1="29" y1="31" x2="35" y2="31" stroke="#0F172A" strokeWidth="3" />
-            <line x1="16" y1="28" x2="20" y2="28" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" />
-            <line x1="38" y1="28" x2="42" y2="28" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M17 22C17 11 47 11 47 22Z" fill="#2563EB" />
+            <path
+              d="M15 21C22 18 42 18 49 21C45 23 19 23 15 21Z"
+              fill="#1D4ED8"
+              stroke="#93C5FD"
+              strokeWidth="1"
+            />
           </g>
         );
       case 'crown':
-        // 3D Golden Star Crown
         return (
           <g>
             <path
-              d="M17 18L21 7L32 14L43 7L47 18H17Z"
+              d="M20 15L24 7L32 12L40 7L44 15H20Z"
               fill="#FFD600"
               stroke="#B45309"
-              strokeWidth="2"
+              strokeWidth="1.6"
               strokeLinejoin="round"
             />
-            <circle cx="32" cy="12" r="2.2" fill="#EF4444" />
-            <circle cx="22" cy="14" r="1.8" fill="#007AFF" />
-            <circle cx="42" cy="14" r="1.8" fill="#22C55E" />
+            <circle cx="32" cy="11" r="1.8" fill="#EF4444" />
           </g>
         );
       case 'headphones':
-        // 3D Gamer Headphones
         return (
           <g>
             <path
-              d="M11 32C11 17 53 17 53 32"
+              d="M13 30C13 14 51 14 51 30"
               stroke="#FFD600"
-              strokeWidth="4.5"
+              strokeWidth="3.5"
               strokeLinecap="round"
               fill="none"
             />
-            <rect x="7" y="26" width="7" height="15" rx="3.5" fill="#EF4444" stroke="#FFFFFF" strokeWidth="1.5" />
-            <rect x="50" y="26" width="7" height="15" rx="3.5" fill="#EF4444" stroke="#FFFFFF" strokeWidth="1.5" />
+            <rect x="10" y="25" width="5.5" height="12" rx="2.7" fill="#EF4444" stroke="#FFFFFF" strokeWidth="1" />
+            <rect x="48.5" y="25" width="5.5" height="12" rx="2.7" fill="#EF4444" stroke="#FFFFFF" strokeWidth="1" />
           </g>
         );
       default:
@@ -108,156 +456,125 @@ export const AvatarIcon: React.FC<AvatarIconProps> = ({ avatarId, className = 'w
   return (
     <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
       <defs>
-        <radialGradient id={`bg3d_${uid}`} cx="30%" cy="25%" r="75%">
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.45" />
-          <stop offset="35%" stopColor={color} stopOpacity="1" />
-          <stop offset="100%" stopColor="#0F172A" stopOpacity="0.9" />
+        <radialGradient id={`skin3d_${uid}`} cx="38%" cy="30%" r="68%">
+          <stop offset="0%" stopColor={profile.skinHighlight} />
+          <stop offset="55%" stopColor={profile.skinBase} />
+          <stop offset="100%" stopColor={profile.skinShadow} />
         </radialGradient>
-        <linearGradient id={`gloss_${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.55" />
-          <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+        <linearGradient id={`cardBg_${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#F8FAFC" />
+          <stop offset="100%" stopColor="#E2E8F0" />
         </linearGradient>
+        <clipPath id={`clipCard_${uid}`}>
+          <rect x="3" y="3" width="58" height="58" rx="16" />
+        </clipPath>
       </defs>
 
-      {/* 3D Base Medallion / Cube */}
-      {character === 'cube_happy' ? (
-        <g>
-          {/* 3D Rounded Happy Block */}
-          <rect
-            x="8"
-            y="10"
-            width="48"
-            height="48"
-            rx="15"
-            fill={color}
-            stroke="#FFFFFF"
-            strokeWidth="3"
-          />
-          <rect
-            x="8"
-            y="10"
-            width="48"
-            height="48"
-            rx="15"
-            fill={`url(#bg3d_${uid})`}
-          />
-          {/* Top 3D Specular Highlight */}
-          <rect x="13" y="13" width="38" height="14" rx="7" fill={`url(#gloss_${uid})`} />
-          {/* Cute Rosy Cheeks */}
-          <circle cx="18" cy="38" r="4" fill="#F43F5E" fillOpacity="0.55" />
-          <circle cx="46" cy="38" r="4" fill="#F43F5E" fillOpacity="0.55" />
-          {/* Big 3D Eyes with Shine */}
-          <circle cx="23" cy="31" r="4.5" fill="#0F172A" />
-          <circle cx="41" cy="31" r="4.5" fill="#0F172A" />
-          <circle cx="21.5" cy="29.5" r="1.6" fill="#FFFFFF" />
-          <circle cx="39.5" cy="29.5" r="1.6" fill="#FFFFFF" />
-          {/* Big Happy Mouth */}
-          <path
-            d="M24 40C26.5 45.5 37.5 45.5 40 40Z"
-            fill="#0F172A"
-          />
-          <path d="M27 42.5C29 44.5 35 44.5 37 42.5" stroke="#F43F5E" strokeWidth="2.5" strokeLinecap="round" />
-        </g>
-      ) : (
-        <g>
-          {/* 3D Spherical Base Badge for Student Characters */}
-          <circle cx="32" cy="33" r="26" fill={color} stroke="#FFFFFF" strokeWidth="3" />
-          <circle cx="32" cy="33" r="26" fill={`url(#bg3d_${uid})`} />
-          <ellipse cx="32" cy="18" rx="16" ry="7" fill={`url(#gloss_${uid})`} />
-        </g>
-      )}
+      {/* Soft 3D Studio Card Backdrop (Inspired by Image 2 Grid Tiles) */}
+      <rect
+        x="3"
+        y="3"
+        width="58"
+        height="58"
+        rx="16"
+        fill={`url(#cardBg_${uid})`}
+        stroke="#FFFFFF"
+        strokeWidth="3"
+      />
+      {/* Subtle Color Halo behind Character */}
+      <circle cx="32" cy="34" r="22" fill={outfitColor} fillOpacity="0.16" />
 
-      {/* Character Specific 3D Features */}
-      {character === 'owl_student' && (
-        <g>
-          {/* 3D Owl Ears & Face */}
-          <path d="M16 17L24 23L17 29Z" fill="#7E22CE" />
-          <path d="M48 17L40 23L47 29Z" fill="#7E22CE" />
-          <circle cx="24" cy="31" r="7.5" fill="#FFFFFF" />
-          <circle cx="40" cy="31" r="7.5" fill="#FFFFFF" />
-          <circle cx="24" cy="31" r="4" fill="#0F172A" />
-          <circle cx="40" cy="31" r="4" fill="#0F172A" />
-          <circle cx="22.5" cy="29.5" r="1.5" fill="#FFFFFF" />
-          <circle cx="38.5" cy="29.5" r="1.5" fill="#FFFFFF" />
-          <polygon points="32,34 27,41 37,41" fill="#FFD600" stroke="#B45309" strokeWidth="1" />
-        </g>
-      )}
+      <g clipPath={`url(#clipCard_${uid})`}>
+        {/* Back Hair Layer */}
+        {renderBackHair()}
 
-      {character === 'fox_scientist' && (
-        <g>
-          <polygon points="14,14 25,22 16,29" fill="#EA580C" />
-          <polygon points="50,14 39,22 48,29" fill="#EA580C" />
-          <path d="M15 35L32 49L49 35L42 26H22L15 35Z" fill="#FFFBEB" />
-          <circle cx="23.5" cy="31" r="3.5" fill="#0F172A" />
-          <circle cx="40.5" cy="31" r="3.5" fill="#0F172A" />
-          <circle cx="22.5" cy="29.8" r="1.2" fill="#FFFFFF" />
-          <circle cx="39.5" cy="29.8" r="1.2" fill="#FFFFFF" />
-          <circle cx="32" cy="41" r="3.2" fill="#0F172A" />
-        </g>
-      )}
+        {/* 3D Neck & Chin Shadow */}
+        <rect x="27" y="38" width="10" height="10" rx="4" fill={profile.skinShadow} />
 
-      {character === 'panda_genius' && (
-        <g>
-          <circle cx="17" cy="18" r="6" fill="#0F172A" />
-          <circle cx="47" cy="18" r="6" fill="#0F172A" />
-          <circle cx="32" cy="34" r="17" fill="#FFFFFF" />
-          <ellipse cx="24" cy="32" rx="5" ry="6" fill="#0F172A" />
-          <ellipse cx="40" cy="32" rx="5" ry="6" fill="#0F172A" />
-          <circle cx="24" cy="31" r="2" fill="#FFFFFF" />
-          <circle cx="40" cy="31" r="2" fill="#FFFFFF" />
-          <ellipse cx="32" cy="38" rx="3.2" ry="2.2" fill="#0F172A" />
-          <path d="M27 43C29 45.5 35 45.5 37 43" stroke="#0F172A" strokeWidth="2.2" strokeLinecap="round" />
-        </g>
-      )}
+        {/* 3D Shoulders & Kid/Teen Outfit */}
+        {renderOutfit()}
 
-      {character === 'cat_astro' && (
-        <g>
-          <polygon points="15,15 26,21 17,29" fill="#F472B6" />
-          <polygon points="49,15 38,21 47,29" fill="#F472B6" />
-          <circle cx="32" cy="34" r="16" fill="#FCE7F3" />
-          <circle cx="24" cy="32" r="3.5" fill="#0F172A" />
-          <circle cx="40" cy="32" r="3.5" fill="#0F172A" />
-          <circle cx="23" cy="30.8" r="1.2" fill="#FFFFFF" />
-          <circle cx="39" cy="30.8" r="1.2" fill="#FFFFFF" />
-          <polygon points="32,36 29,39 35,39" fill="#EC4899" />
-          <path d="M26 42C28 44.5 36 44.5 38 42" stroke="#0F172A" strokeWidth="2.2" strokeLinecap="round" />
-        </g>
-      )}
+        {/* 3D Ears */}
+        <circle cx="17.5" cy="29.5" r="3.8" fill={profile.skinShadow} />
+        <circle cx="46.5" cy="29.5" r="3.8" fill={profile.skinShadow} />
+        <circle cx="18" cy="29.5" r="2.2" fill={profile.skinBase} />
+        <circle cx="46" cy="29.5" r="2.2" fill={profile.skinBase} />
 
-      {character === 'robo_calc' && (
-        <g>
-          <line x1="32" y1="8" x2="32" y2="16" stroke="#FFD600" strokeWidth="3" />
-          <circle cx="32" cy="8" r="3.5" fill="#EF4444" />
-          <rect x="16" y="20" width="32" height="24" rx="7" fill="#0F172A" stroke="#38BDF8" strokeWidth="2.5" />
-          <circle cx="25" cy="30" r="4" fill="#22C55E" />
-          <circle cx="39" cy="30" r="4" fill="#22C55E" />
-          <rect x="23" y="38" width="18" height="3" rx="1.5" fill="#FFD600" />
-        </g>
-      )}
+        {/* 3D Sculpted Clay Head */}
+        <rect
+          x="18.5"
+          y="14.5"
+          width="27"
+          height="28.5"
+          rx="13.5"
+          fill={`url(#skin3d_${uid})`}
+        />
 
-      {character === 'boy_blue' && (
-        <g>
-          <circle cx="32" cy="34" r="15" fill="#FDE68A" />
-          <path d="M17 30C17 18 47 18 47 30C42 24 22 24 17 30Z" fill="#78350F" />
-          <circle cx="26" cy="33" r="2.8" fill="#0F172A" />
-          <circle cx="38" cy="33" r="2.8" fill="#0F172A" />
-          <path d="M26 40C28.5 43 35.5 43 38 40" stroke="#0F172A" strokeWidth="2.6" strokeLinecap="round" />
-        </g>
-      )}
+        {/* Soft Rosy Cheeks */}
+        <ellipse cx="23.5" cy="32.5" rx="3" ry="1.8" fill="#F43F5E" fillOpacity="0.28" />
+        <ellipse cx="40.5" cy="32.5" rx="3" ry="1.8" fill="#F43F5E" fillOpacity="0.28" />
 
-      {character === 'girl_pink' && (
-        <g>
-          <circle cx="32" cy="32" r="17" fill="#451A03" />
-          <path d="M17 26C22 16 42 16 47 26" stroke="#F472B6" strokeWidth="4.5" strokeLinecap="round" />
-          <circle cx="32" cy="35" r="14.5" fill="#FDE68A" />
-          <circle cx="26" cy="34" r="2.8" fill="#0F172A" />
-          <circle cx="38" cy="34" r="2.8" fill="#0F172A" />
-          <path d="M26 41C28.5 44 35.5 44 38 41" stroke="#0F172A" strokeWidth="2.6" strokeLinecap="round" />
-        </g>
-      )}
+        {/* Expressive 3D Eyebrows */}
+        <path
+          d="M23 24.2C24.5 23.2 27 23.2 28.5 24"
+          stroke={profile.hairColor}
+          strokeWidth="2.1"
+          strokeLinecap="round"
+        />
+        <path
+          d="M35.5 24C37 23.2 39.5 23.2 41 24.2"
+          stroke={profile.hairColor}
+          strokeWidth="2.1"
+          strokeLinecap="round"
+        />
 
-      {/* Top 3D Accessory Overlay */}
-      {renderAccessory()}
+        {/* Glossy 3D Eyes */}
+        <circle cx="26" cy="28.2" r="2.5" fill="#1E1B18" />
+        <circle cx="38" cy="28.2" r="2.5" fill="#1E1B18" />
+        <circle cx="25.2" cy="27.4" r="0.9" fill="#FFFFFF" />
+        <circle cx="37.2" cy="27.4" r="0.9" fill="#FFFFFF" />
+
+        {/* Cute 3D Rounded Nose */}
+        <ellipse cx="32" cy="31.2" rx="2.2" ry="1.6" fill={profile.skinShadow} />
+        <ellipse cx="31.6" cy="30.7" rx="1.2" ry="0.8" fill={profile.skinHighlight} fillOpacity="0.6" />
+
+        {/* Warm Friendly Smile */}
+        <path
+          d="M27.8 35.5C29.5 37.8 34.5 37.8 36.2 35.5"
+          stroke="#7C2D12"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+
+        {/* Optional Round 3D Eyeglasses (Like Image 2 Teen Avatars) */}
+        {showGlasses && (
+          <g>
+            <circle
+              cx="26"
+              cy="28.2"
+              r="5"
+              fill="rgba(255,255,255,0.18)"
+              stroke="#78350F"
+              strokeWidth="1.8"
+            />
+            <circle
+              cx="38"
+              cy="28.2"
+              r="5"
+              fill="rgba(255,255,255,0.18)"
+              stroke="#78350F"
+              strokeWidth="1.8"
+            />
+            <line x1="31" y1="28.2" x2="33" y2="28.2" stroke="#78350F" strokeWidth="1.8" />
+          </g>
+        )}
+
+        {/* Front 3D Sculpted Hair */}
+        {renderFrontHair()}
+
+        {/* Optional Top Accessory */}
+        {renderAccessory()}
+      </g>
     </svg>
   );
 };
@@ -332,59 +649,68 @@ export const Module3DIllustration: React.FC<{ moduleId: LearningModuleId }> = ({
 
 /**
  * Splash / Title Screen Centerpiece Illustration:
- * Balloon Header "Jogo de Matemática" + Boy (#007AFF) & Girl (#EC4899) stacking 3D blocks 1, 2, 3, 4, 5
- * with floating +, −, ×, ÷ symbols
+ * Crystal-clear, unobstructed "JOGO DE MATEMÁTICA" 3D Title Banner
+ * flanked by +, −, ×, ÷ 3D blocks + Léo & Bia 3D Kid Avatars stacking blocks 1, 2, 3, 4, 5
  */
 export const KidsMathSplashHero: React.FC<{ className?: string }> = ({
-  className = 'w-full max-w-2xl',
+  className = 'w-full max-w-3xl',
 }) => (
   <div className={`relative flex flex-col items-center select-none ${className}`}>
-    {/* Top Balloon Title Banner ("Jogo de Matemática") */}
-    <div className="relative z-10 px-8 py-4 rounded-[32px] bg-gradient-to-b from-[#007AFF] to-[#0284C7] border-4 border-white shadow-[0_8px_0_#0369A1,0_14px_28px_rgba(0,0,0,0.45)] flex flex-col items-center">
-      {/* Floating 3D Math Operators around Title */}
-      <div
-        className="absolute -left-6 -top-4 w-12 h-12 rounded-2xl bg-[#22C55E] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-2xl text-white -rotate-12"
-        aria-hidden="true"
-      >
-        +
-      </div>
-      <div
-        className="absolute -right-6 -top-4 w-12 h-12 rounded-2xl bg-[#F97316] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-2xl text-white rotate-12"
-        aria-hidden="true"
-      >
-        −
-      </div>
-      <div
-        className="absolute -left-5 -bottom-4 w-11 h-11 rounded-2xl bg-[#007AFF] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-xl text-white rotate-6"
-        aria-hidden="true"
-      >
-        ×
-      </div>
-      <div
-        className="absolute -right-5 -bottom-4 w-11 h-11 rounded-2xl bg-[#A855F7] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-xl text-white -rotate-6"
-        aria-hidden="true"
-      >
-        ÷
+    {/* Top Balloon Title Banner ("JOGO DE MATEMÁTICA") — 100% Unobstructed & Prominent */}
+    <div className="relative z-10 w-full max-w-2xl px-6 sm:px-10 py-4 sm:py-5 rounded-[32px] bg-gradient-to-b from-[#007AFF] via-[#0284C7] to-[#0369A1] border-4 border-white shadow-[0_8px_0_#075985,0_16px_32px_rgba(0,0,0,0.5)] flex items-center justify-between gap-4">
+      {/* Left Pair of 3D Operator Blocks (+ and ×) */}
+      <div className="hidden sm:flex flex-col items-center gap-2.5 shrink-0" aria-hidden="true">
+        <div className="w-12 h-12 rounded-2xl bg-[#22C55E] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-2xl text-white -rotate-6">
+          +
+        </div>
+        <div className="w-12 h-12 rounded-2xl bg-[#A855F7] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-2xl text-white rotate-6">
+          ×
+        </div>
       </div>
 
-      <span className="title-3d-white font-display font-black text-2xl sm:text-3xl tracking-wide uppercase leading-none">
-        Jogo de
-      </span>
-      <span className="title-3d-yellow font-display font-black text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-tight">
-        Matemática
-      </span>
+      {/* Center 3D Extruded Game Title — Clearly Visible! */}
+      <div className="flex flex-col items-center text-center mx-auto">
+        <span className="inline-block px-4 py-0.5 rounded-full bg-slate-950/35 border border-white/30 title-3d-white font-display font-black text-xl sm:text-2xl lg:text-3xl tracking-widest uppercase leading-tight">
+          JOGO DE
+        </span>
+        <h1 className="mt-1 title-3d-yellow font-display font-black text-4xl sm:text-6xl lg:text-7xl tracking-tight leading-none drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)]">
+          Matemática
+        </h1>
+      </div>
+
+      {/* Right Pair of 3D Operator Blocks (− and ÷) */}
+      <div className="hidden sm:flex flex-col items-center gap-2.5 shrink-0" aria-hidden="true">
+        <div className="w-12 h-12 rounded-2xl bg-[#F97316] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-2xl text-white rotate-6">
+          −
+        </div>
+        <div className="w-12 h-12 rounded-2xl bg-[#EC4899] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-2xl text-white -rotate-6">
+          ÷
+        </div>
+      </div>
     </div>
 
-    {/* 3D Scene: Boy & Girl Building the Tower of Number Blocks (1, 2, 3, 4, 5) */}
-    <div className="mt-4 w-full max-w-xl rounded-3xl bg-gradient-to-b from-[#0F172A]/90 to-[#1E293B]/95 border-3 border-white/30 px-6 pt-5 pb-4 panel-3d flex items-end justify-around gap-4 relative overflow-hidden">
-      {/* Left Character: Cheerful Boy in Blue Shirt (#007AFF) */}
-      <div className="flex flex-col items-center z-10">
-        <AvatarIcon avatarId="boy_blue|#007AFF|cap" className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-lg" />
-        <span className="mt-1 text-xs font-extrabold text-sky-300">Léo</span>
+    {/* 3D Scene: Kids & Teens 3D Avatars Building the Tower of Number Blocks (1, 2, 3, 4, 5) */}
+    <div className="mt-3.5 w-full max-w-2xl rounded-3xl bg-gradient-to-b from-[#0F172A]/90 to-[#1E293B]/95 border-3 border-white/30 px-6 pt-4 pb-4 panel-3d flex items-end justify-around gap-4 relative overflow-hidden">
+      {/* Left Character: Léo (Infantil Masculino) & Lucas (Adolescente Masculino) */}
+      <div className="flex items-end gap-2.5 z-10">
+        <div className="flex flex-col items-center">
+          <AvatarIcon
+            avatarId="leo_infantil_m|#F97316|none"
+            className="w-18 h-18 sm:w-22 sm:h-22 drop-shadow-xl"
+          />
+          <span className="mt-1 text-xs font-extrabold text-sky-200">Léo</span>
+        </div>
+        <div className="hidden md:flex flex-col items-center">
+          <AvatarIcon
+            avatarId="lucas_teen_m|#0284C7|glasses"
+            className="w-15 h-15 drop-shadow-lg"
+          />
+          <span className="mt-1 text-[11px] font-bold text-sky-300">Lucas</span>
+        </div>
       </div>
 
       {/* Center Interactive 3D Block Tower (1, 2, 3, 4, 5) */}
-      <div className="flex flex-col items-center gap-1.5 z-10">
+      <div className="flex flex-col items-center gap-1.5 z-10 pb-1">
         <div className="flex items-center gap-1.5">
           <NumberCube3D number={5} colorHex="#A855F7" size="sm" className="-rotate-3" />
         </div>
@@ -398,14 +724,26 @@ export const KidsMathSplashHero: React.FC<{ className?: string }> = ({
         </div>
       </div>
 
-      {/* Right Character: Smiling Girl in Pink Dress & Tiara (#EC4899) */}
-      <div className="flex flex-col items-center z-10">
-        <AvatarIcon avatarId="girl_pink|#EC4899|crown" className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-lg" />
-        <span className="mt-1 text-xs font-extrabold text-pink-300">Bia</span>
+      {/* Right Character: Bia (Infantil Feminino) & Maya (Adolescente Feminino) */}
+      <div className="flex items-end gap-2.5 z-10">
+        <div className="hidden md:flex flex-col items-center">
+          <AvatarIcon
+            avatarId="maya_teen_f|#007AFF|glasses"
+            className="w-15 h-15 drop-shadow-lg"
+          />
+          <span className="mt-1 text-[11px] font-bold text-pink-300">Maya</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <AvatarIcon
+            avatarId="bia_infantil_f|#EC4899|none"
+            className="w-18 h-18 sm:w-22 sm:h-22 drop-shadow-xl"
+          />
+          <span className="mt-1 text-xs font-extrabold text-pink-200">Bia</span>
+        </div>
       </div>
 
       {/* Warm Wooden Table Base Strip */}
-      <div className="absolute bottom-0 left-0 right-0 h-3.5 bg-gradient-to-r from-[#B45309] via-[#EAB308] to-[#B45309]" />
+      <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-r from-[#B45309] via-[#EAB308] to-[#B45309]" />
     </div>
   </div>
 );
@@ -530,4 +868,3 @@ export const Medal3DBadge: React.FC<{
     </motion.div>
   );
 };
-

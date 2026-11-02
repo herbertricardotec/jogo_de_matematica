@@ -89,10 +89,10 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
     return '';
   });
 
-  // 3D Avatar Generator State
-  const [baseCharacter, setBaseCharacter] = useState<AvatarBaseCharacterId>('cube_happy');
-  const [avatarColor, setAvatarColor] = useState<string>('#007AFF');
-  const [avatarAccessory, setAvatarAccessory] = useState<AvatarAccessoryId>('cap');
+  // 3D Avatar Generator State (Kids & Teens — Male & Female)
+  const [baseCharacter, setBaseCharacter] = useState<AvatarBaseCharacterId>('leo_infantil_m');
+  const [avatarColor, setAvatarColor] = useState<string>('#F97316');
+  const [avatarAccessory, setAvatarAccessory] = useState<AvatarAccessoryId>('none');
 
   const [muted, setMuted] = useState(soundEngine.isMuted());
   const [remainingRatio, setRemainingRatio] = useState<number>(1);
@@ -224,7 +224,9 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                 </motion.div>
                 <div>
                   <div className="text-[11px] font-black uppercase text-[#FFD600]">
-                    Identidade Visual 3D Única
+                    Avatar 3D ·{' '}
+                    {AVATAR_BASE_CHARACTERS.find((c) => c.id === baseCharacter)?.ageGroup} (
+                    {AVATAR_BASE_CHARACTERS.find((c) => c.id === baseCharacter)?.gender})
                   </div>
                   <div className="font-display font-black text-base text-white">
                     {AVATAR_BASE_CHARACTERS.find((c) => c.id === baseCharacter)?.label}
@@ -245,10 +247,10 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
               </button>
             </div>
 
-            {/* Step 1: Base 3D Character Selection */}
+            {/* Step 1: Base 3D Character Selection (Infantil & Adolescente, Masculino & Feminino) */}
             <div className="space-y-1">
               <div className="text-[11px] font-extrabold text-sky-200">
-                1. Personagem 3D (Blocos e Animais Estudantes):
+                1. Avatar 3D (Infantil e Adolescente · Masculino e Feminino):
               </div>
               <div className="grid grid-cols-4 gap-1.5">
                 {AVATAR_BASE_CHARACTERS.map((preset) => {
@@ -260,19 +262,26 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                       onClick={() => {
                         soundEngine.vibrate('tap');
                         setBaseCharacter(preset.id);
+                        setAvatarColor(preset.defaultColor);
                       }}
                       className={`p-1.5 rounded-xl border-2 flex flex-col items-center gap-0.5 transition-transform active:scale-95 ${
                         active
                           ? 'bg-[#007AFF]/40 border-[#FFD600] scale-105'
-                          : 'bg-slate-900/80 border-slate-800 opacity-80'
+                          : 'bg-slate-900/80 border-slate-800 opacity-85'
                       }`}
                     >
                       <AvatarIcon
-                        avatarId={`${preset.id}|${avatarColor}|${avatarAccessory}`}
-                        className="w-9 h-9"
+                        avatarId={`${preset.id}|${
+                          active ? avatarColor : preset.defaultColor
+                        }|${avatarAccessory}`}
+                        className="w-11 h-11"
                       />
-                      <span className="text-[10px] font-bold text-white truncate max-w-full">
+                      <span className="text-[10px] font-extrabold text-white truncate max-w-full">
                         {preset.label.split(' ')[0]}
+                      </span>
+                      <span className="text-[9px] font-bold text-sky-300 leading-none">
+                        {preset.ageGroup === 'Infantil' ? 'Infantil' : 'Teen'} ·{' '}
+                        {preset.gender === 'Masculino' ? 'M' : 'F'}
                       </span>
                     </button>
                   );

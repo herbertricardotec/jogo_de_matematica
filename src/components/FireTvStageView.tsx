@@ -437,21 +437,26 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
       />
 
       {/* TOP BAR HUD + ALWAYS-VISIBLE RECONNECTION QR CODE WIDGET */}
-      <header className="relative z-10 flex items-center justify-between gap-4 px-5 lg:px-10 py-2.5 border-b-2 border-white/15 bg-[#0A192F]/90">
-        {/* Left Zone: Brand & Active Module */}
-        <div className="flex items-center gap-3 shrink-0">
+      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 lg:px-8 py-2.5 border-b-2 border-white/15 bg-[#0A192F]/95">
+        {/* Left Zone: Prominent Brand Name & Active Module */}
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             data-tv-focusable="true"
             onClick={() => onSetStatus('TITLE_MENU')}
-            className="tv-focusable font-display font-black text-xl tracking-tight text-[#FFD600] whitespace-nowrap shrink-0"
+            className="tv-focusable flex items-center gap-2 px-3 py-1 rounded-2xl bg-[#007AFF] border-2 border-white shadow-md shrink-0"
           >
-            Jogo de Matemática
+            <span className="w-6 h-6 rounded-lg bg-[#FFD600] text-slate-950 font-display font-black text-xs flex items-center justify-center">
+              +
+            </span>
+            <span className="font-display font-black text-base sm:text-lg tracking-tight text-white whitespace-nowrap">
+              Jogo de <span className="text-[#FFD600]">Matemática</span>
+            </span>
           </button>
-          <span className="text-slate-500" aria-hidden="true">
+          <span className="hidden md:inline text-slate-500" aria-hidden="true">
             ·
           </span>
-          <span className="hidden sm:inline text-xs font-extrabold text-sky-200 whitespace-nowrap">
+          <span className="hidden md:inline text-xs font-extrabold text-sky-200 whitespace-nowrap">
             {activeModuleMeta.numberLabel}:{' '}
             <strong className="text-white">{activeModuleMeta.title}</strong>
           </span>
@@ -678,7 +683,6 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                       data-tv-focusable="true"
                       onClick={() => {
                         soundEngine.playTick();
-                        soundEngine.speak(`${mod.numberLabel}: ${mod.title}. ${mod.subtitle}`);
                         onConfigureGame({ moduleId: mod.id });
                       }}
                       style={{

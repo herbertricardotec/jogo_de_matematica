@@ -33,7 +33,7 @@ export const LEARNING_MODULES: LearningModuleMeta[] = [
     id: 'MODULE_1_NUMBERS',
     numberLabel: 'Módulo 1',
     title: 'Conhecendo os Números',
-    subtitle: 'Contagem visual e completar torres de blocos (1 a 10)',
+    subtitle: 'Atividades com os blocos 1 a 5',
     symbol: '123',
     bgColor: '#007AFF',
     borderColor: '#60A5FA',
@@ -43,7 +43,7 @@ export const LEARNING_MODULES: LearningModuleMeta[] = [
     id: 'MODULE_2_ADDITION',
     numberLabel: 'Módulo 2',
     title: 'Somando com Blocos',
-    subtitle: 'Operações divertidas de Adição (+) empilhando cubos',
+    subtitle: 'Operação de Adição +',
     symbol: '+',
     bgColor: '#22C55E',
     borderColor: '#86EFAC',
@@ -53,7 +53,7 @@ export const LEARNING_MODULES: LearningModuleMeta[] = [
     id: 'MODULE_3_SUBTRACTION',
     numberLabel: 'Módulo 3',
     title: 'Subtraindo e Desmontando',
-    subtitle: 'Operações de Subtração (-) tirando blocos da torre',
+    subtitle: 'Operação de Subtração -',
     symbol: '−',
     bgColor: '#F97316',
     borderColor: '#FDBA74',
@@ -63,7 +63,7 @@ export const LEARNING_MODULES: LearningModuleMeta[] = [
     id: 'MODULE_4_SYMBOLS',
     numberLabel: 'Módulo 4',
     title: 'Desafio dos Símbolos',
-    subtitle: 'Multiplicação (×), Divisão (÷) e misturas de símbolos',
+    subtitle: 'Multiplicação × e Divisão ÷',
     symbol: '×÷',
     bgColor: '#A855F7',
     borderColor: '#D8B4FE',
@@ -80,6 +80,14 @@ export interface GameSettings {
 }
 
 export type AvatarBaseCharacterId =
+  | 'leo_infantil_m'
+  | 'bia_infantil_f'
+  | 'kaua_infantil_m'
+  | 'sofia_infantil_f'
+  | 'lucas_teen_m'
+  | 'maya_teen_f'
+  | 'gui_teen_m'
+  | 'lara_teen_f'
   | 'cube_happy'
   | 'owl_student'
   | 'fox_scientist'
@@ -94,18 +102,68 @@ export type AvatarAccessoryId = 'none' | 'cap' | 'glasses' | 'crown' | 'headphon
 export interface AvatarGeneratorPreset {
   id: AvatarBaseCharacterId;
   label: string;
+  ageGroup: 'Infantil' | 'Adolescente';
+  gender: 'Masculino' | 'Feminino';
   defaultColor: string;
 }
 
 export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
-  { id: 'cube_happy', label: 'Cubo Feliz 3D', defaultColor: '#007AFF' },
-  { id: 'owl_student', label: 'Coruja Sábia 3D', defaultColor: '#A855F7' },
-  { id: 'fox_scientist', label: 'Raposa Estudante', defaultColor: '#F97316' },
-  { id: 'panda_genius', label: 'Panda Gênio 3D', defaultColor: '#22C55E' },
-  { id: 'cat_astro', label: 'Gatinho Blocos', defaultColor: '#EC4899' },
-  { id: 'robo_calc', label: 'Robô Calculadora', defaultColor: '#0284C7' },
-  { id: 'boy_blue', label: 'Léo Construtor', defaultColor: '#007AFF' },
-  { id: 'girl_pink', label: 'Bia Estrela', defaultColor: '#EC4899' },
+  {
+    id: 'leo_infantil_m',
+    label: 'Léo (Infantil M)',
+    ageGroup: 'Infantil',
+    gender: 'Masculino',
+    defaultColor: '#F97316',
+  },
+  {
+    id: 'bia_infantil_f',
+    label: 'Bia (Infantil F)',
+    ageGroup: 'Infantil',
+    gender: 'Feminino',
+    defaultColor: '#EC4899',
+  },
+  {
+    id: 'kaua_infantil_m',
+    label: 'Kauã (Infantil M)',
+    ageGroup: 'Infantil',
+    gender: 'Masculino',
+    defaultColor: '#007AFF',
+  },
+  {
+    id: 'sofia_infantil_f',
+    label: 'Sofia (Infantil F)',
+    ageGroup: 'Infantil',
+    gender: 'Feminino',
+    defaultColor: '#22C55E',
+  },
+  {
+    id: 'lucas_teen_m',
+    label: 'Lucas (Teen M)',
+    ageGroup: 'Adolescente',
+    gender: 'Masculino',
+    defaultColor: '#0284C7',
+  },
+  {
+    id: 'maya_teen_f',
+    label: 'Maya (Teen F)',
+    ageGroup: 'Adolescente',
+    gender: 'Feminino',
+    defaultColor: '#007AFF',
+  },
+  {
+    id: 'gui_teen_m',
+    label: 'Gui (Teen M)',
+    ageGroup: 'Adolescente',
+    gender: 'Masculino',
+    defaultColor: '#EAB308',
+  },
+  {
+    id: 'lara_teen_f',
+    label: 'Lara (Teen F)',
+    ageGroup: 'Adolescente',
+    gender: 'Feminino',
+    defaultColor: '#A855F7',
+  },
 ];
 
 export const AVATAR_3D_COLORS: { hex: string; label: string }[] = [
@@ -120,9 +178,9 @@ export const AVATAR_3D_COLORS: { hex: string; label: string }[] = [
 
 export const AVATAR_ACCESSORIES: { id: AvatarAccessoryId; label: string; icon: string }[] = [
   { id: 'none', label: 'Natural', icon: '✨' },
-  { id: 'cap', label: 'Formatura', icon: '🎓' },
-  { id: 'glasses', label: 'Óculos Gênio', icon: '👓' },
-  { id: 'crown', label: 'Coroa 3D', icon: '👑' },
+  { id: 'cap', label: 'Boné 3D', icon: '🧢' },
+  { id: 'glasses', label: 'Óculos', icon: '👓' },
+  { id: 'crown', label: 'Tiara/Coroa', icon: '👑' },
   { id: 'headphones', label: 'Fone Gamer', icon: '🎧' },
 ];
 
@@ -134,10 +192,10 @@ export interface PlayerAvatar {
 }
 
 export const PLAYER_AVATARS: PlayerAvatar[] = [
-  { id: 'cube_happy|#007AFF|cap', label: 'Cubo Feliz', color: '#007AFF', accentBg: 'rgba(0, 122, 255, 0.2)' },
-  { id: 'owl_student|#A855F7|glasses', label: 'Coruja Sábia', color: '#A855F7', accentBg: 'rgba(168, 85, 247, 0.2)' },
-  { id: 'fox_scientist|#F97316|crown', label: 'Raposa Turbo', color: '#F97316', accentBg: 'rgba(249, 115, 22, 0.2)' },
-  { id: 'panda_genius|#22C55E|headphones', label: 'Panda Gênio', color: '#22C55E', accentBg: 'rgba(34, 197, 94, 0.2)' },
+  { id: 'leo_infantil_m|#F97316|none', label: 'Léo', color: '#F97316', accentBg: 'rgba(249, 115, 22, 0.2)' },
+  { id: 'bia_infantil_f|#EC4899|none', label: 'Bia', color: '#EC4899', accentBg: 'rgba(236, 72, 153, 0.2)' },
+  { id: 'lucas_teen_m|#007AFF|glasses', label: 'Lucas', color: '#007AFF', accentBg: 'rgba(0, 122, 255, 0.2)' },
+  { id: 'maya_teen_f|#22C55E|glasses', label: 'Maya', color: '#22C55E', accentBg: 'rgba(34, 197, 94, 0.2)' },
 ];
 
 export type AchievementMedalId =
