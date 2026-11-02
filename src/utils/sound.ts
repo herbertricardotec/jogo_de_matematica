@@ -1,19 +1,25 @@
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private muted: boolean = false;
-  private voiceEnabled: boolean = true;
+  private isMobileController: boolean = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
       const savedMute = window.localStorage.getItem('mathshow_muted');
       this.muted = savedMute === 'true';
-      const savedVoice = window.localStorage.getItem('mathshow_voice_enabled');
-      this.voiceEnabled = savedVoice !== 'false';
     }
   }
 
+  /**
+   * Define se o dispositivo atual é o controle do celular.
+   * No celular não reproduzimos áudios, apenas uma leve vibração no início de cada jogada.
+   */
+  public setControllerMode(isController: boolean) {
+    this.isMobileController = isController;
+  }
+
   private getContext(): AudioContext | null {
-    if (this.muted || typeof window === 'undefined') return null;
+    if (this.muted || this.isMobileController || typeof window === 'undefined') return null;
     if (!this.ctx) {
       const AudioCtx =
         window.AudioContext ||
@@ -36,9 +42,6 @@ class SoundEngine {
     this.muted = !this.muted;
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('mathshow_muted', String(this.muted));
-      if (this.muted && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
     }
     if (!this.muted) {
       this.playTick();
@@ -46,90 +49,29 @@ class SoundEngine {
     return this.muted;
   }
 
-  public isVoiceEnabled(): boolean {
-    return this.voiceEnabled;
-  }
-
-  public toggleVoice(): boolean {
-    this.voiceEnabled = !this.voiceEnabled;
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('mathshow_voice_enabled', String(this.voiceEnabled));
-      if (!this.voiceEnabled && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    }
-    if (this.voiceEnabled && !this.muted) {
-      this.speak('Narrador de voz ativado!', true);
-    }
-    return this.voiceEnabled;
-  }
-
-  /**
-   * Narrador de Voz (Text-to-Speech) estilo Apresentador de TV em Português
-   */
-  public speak(text: string, interrupt = true) {
-    if (this.muted || !this.voiceEnabled || typeof window === 'undefined') return;
-    if (!('speechSynthesis' in window)) return;
-
-    // Never read module labels/subtitles aloud per user preference
-    const forbiddenModulePhrases = [
-      'Módulo 1',
-      'Módulo 2',
-      'Módulo 3',
-      'Módulo 4',
-      'Atividades com os blocos 1 a 5',
-      'Operação de Adição',
-      'Operação de Subtração',
-      'Multiplicação × e Divisão ÷',
-    ];
-    let sanitizedText = text;
-    for (const phrase of forbiddenModulePhrases) {
-      if (sanitizedText.includes(phrase)) {
-        return;
-      }
-    }
-
-    try {
-      if (interrupt) {
-        window.speechSynthesis.cancel();
-      }
-      const utterance = new SpeechSynthesisUtterance(sanitizedText);
-      utterance.lang = 'pt-BR';
-      utterance.rate = 1.04;
-      utterance.pitch = 1.1;
-
-      const voices = window.speechSynthesis.getVoices();
-      const ptVoice =
-        voices.find((v) => v.lang.toLowerCase().includes('pt-br')) ||
-        voices.find((v) => v.lang.toLowerCase().startsWith('pt'));
-      if (ptVoice) {
-        utterance.voice = ptVoice;
-      }
-
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      // Ignore speech synthesis errors on restricted webviews
-    }
-  }
-
   /**
    * Vibração Háptica (Vibration API) para o Controle no Celular
+   * Leve tremida para identificar o início de cada jogada.
    */
-  public vibrate(pattern: 'tap' | 'powerup' | 'success' | 'encourage') {
+  public vibrate(pattern: 'question_start' | 'tap' | 'powerup' | 'success' | 'encourage') {
     if (typeof window === 'undefined' || !('vibrate' in navigator)) return;
     try {
       switch (pattern) {
+        case 'question_start':
+          // Leve tremida no início de cada jogada
+          navigator.vibrate(55);
+          break;
         case 'tap':
-          navigator.vibrate(35);
+          navigator.vibrate(25);
           break;
         case 'powerup':
-          navigator.vibrate([40, 50, 80]);
+          navigator.vibrate(35);
           break;
         case 'success':
-          navigator.vibrate([60, 50, 110]);
+          navigator.vibrate(45);
           break;
         case 'encourage':
-          navigator.vibrate([45, 70, 45]);
+          navigator.vibrate(30);
           break;
       }
     } catch {
@@ -200,23 +142,32 @@ class SoundEngine {
     });
   }
 
+  /**
+   * Som característico de Game Show para identificar claramente o início de cada pergunta na TV
+   */
   public playNewQuestion() {
     const ctx = this.getContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
-    const freqs = [392.0, 523.25, 659.25, 783.99];
-    freqs.forEach((f, i) => {
+    const sequence = [
+      { f: 523.25, t: 0.0, d: 0.12, type: 'triangle' as OscillatorType, g: 0.18 },  // C5
+      { f: 659.25, t: 0.1, d: 0.12, type: 'triangle' as OscillatorType, g: 0.18 },  // E5
+      { f: 783.99, t: 0.2, d: 0.14, type: 'triangle' as OscillatorType, g: 0.2 },   // G5
+      { f: 1046.5, t: 0.32, d: 0.42, type: 'sine' as OscillatorType, g: 0.24 },     // C6 chime
+      { f: 1318.5, t: 0.32, d: 0.38, type: 'triangle' as OscillatorType, g: 0.12 }, // E6 harmonic
+    ];
+    sequence.forEach((n) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(f, now + i * 0.055);
-      gain.gain.setValueAtTime(0.12, now + i * 0.055);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.055 + 0.25);
+      osc.type = n.type;
+      osc.frequency.setValueAtTime(n.f, now + n.t);
+      gain.gain.setValueAtTime(n.g, now + n.t);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + n.t + n.d);
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.start(now + i * 0.055);
-      osc.stop(now + i * 0.055 + 0.26);
+      osc.start(now + n.t);
+      osc.stop(now + n.t + n.d + 0.02);
     });
   }
 
@@ -259,7 +210,6 @@ class SoundEngine {
         osc.stop(now + idx * 0.06 + 0.47);
       });
     } else {
-      // Gentle encouraging two-note chime (Kid-Safe, no harsh buzzer)
       const notes = [440, 392];
       notes.forEach((f, idx) => {
         const osc = ctx.createOscillator();
@@ -305,14 +255,13 @@ class SoundEngine {
   }
 
   /**
-   * Som comemorativo especial de Medalha 3D e Chuva de Confetes
+   * Som comemorativo especial de Medalha 3D e Chuva de Confetes na TV
    */
   public playMedalFanfare() {
     const ctx = this.getContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
-    // Sparkling celebratory arpeggio + harmonic brass chord
     const notes = [
       { f: 523.25, t: 0.0, d: 0.16, type: 'triangle' as OscillatorType },
       { f: 659.25, t: 0.09, d: 0.16, type: 'triangle' as OscillatorType },

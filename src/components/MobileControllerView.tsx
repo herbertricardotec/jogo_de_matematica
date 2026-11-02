@@ -23,8 +23,6 @@ import {
   Module3DIllustration,
   NumberCube3D,
 } from './AvatarIcon.tsx';
-import { PWAInstallButton } from './PWAInstallButton.tsx';
-import { soundEngine } from '../utils/sound.ts';
 import {
   Award,
   CheckCircle2,
@@ -39,8 +37,6 @@ import {
   Sparkles,
   Star,
   Tv,
-  Volume2,
-  VolumeX,
 } from 'lucide-react';
 
 interface MobileControllerViewProps {
@@ -94,7 +90,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
   const [avatarColor, setAvatarColor] = useState<string>('#F97316');
   const [avatarAccessory, setAvatarAccessory] = useState<AvatarAccessoryId>('none');
 
-  const [muted, setMuted] = useState(soundEngine.isMuted());
   const [remainingRatio, setRemainingRatio] = useState<number>(1);
   const [remainingSec, setRemainingSec] = useState<number>(18);
 
@@ -136,8 +131,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
   }, [roomState]);
 
   const handleRandomizeAvatar = () => {
-    soundEngine.vibrate('tap');
-    soundEngine.playTick();
     const randChar =
       AVATAR_BASE_CHARACTERS[Math.floor(Math.random() * AVATAR_BASE_CHARACTERS.length)];
     const randColor =
@@ -157,14 +150,7 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('mathshow_player_name', cleanName);
     }
-    soundEngine.vibrate('tap');
-    soundEngine.playPlayerJoin();
     onJoinRoom(cleanPin, cleanName, composedAvatarId);
-  };
-
-  const handleToggleMute = () => {
-    soundEngine.vibrate('tap');
-    setMuted(soundEngine.toggleMute());
   };
 
   // 1. LOGIN SCREEN WITH INTERACTIVE 3D AVATAR GENERATOR
@@ -175,23 +161,20 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
           isEmbeddedPiP ? 'h-full' : 'min-h-screen'
         } w-full bg-gradient-to-b from-[#007AFF] via-[#072B59] to-[#0A192F] text-[#F8FAFC] flex flex-col justify-between p-4 sm:p-6`}
       >
-        <header className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/15">
+        <header className="flex items-center justify-between gap-2 pb-3 border-b border-white/15">
           <span className="title-3d-yellow font-display font-black text-xl tracking-tight whitespace-nowrap shrink-0">
             Jogo de Matemática
           </span>
-          <div className="flex items-center gap-2">
-            {!isEmbeddedPiP && <PWAInstallButton compact />}
-            {!isEmbeddedPiP && onSwitchToTvMode && (
-              <button
-                type="button"
-                onClick={onSwitchToTvMode}
-                className="cube-3d min-h-[42px] px-3.5 py-1.5 rounded-2xl bg-[#FFD600] hover:bg-[#FACC15] text-xs font-black text-slate-950 flex items-center gap-1.5 whitespace-nowrap shrink-0"
-              >
-                <Tv className="w-4 h-4" />
-                <span>Apresentação na TV</span>
-              </button>
-            )}
-          </div>
+          {!isEmbeddedPiP && onSwitchToTvMode && (
+            <button
+              type="button"
+              onClick={onSwitchToTvMode}
+              className="cube-3d min-h-[40px] px-3 py-1.5 rounded-2xl bg-[#FFD600] hover:bg-[#FACC15] text-xs font-black text-slate-950 flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            >
+              <Tv className="w-4 h-4" />
+              <span>Ver Tela TV</span>
+            </button>
+          )}
         </header>
 
         <form onSubmit={handleJoinSubmit} className="my-auto py-3 max-w-md w-full mx-auto space-y-4">
@@ -260,7 +243,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                       key={preset.id}
                       type="button"
                       onClick={() => {
-                        soundEngine.vibrate('tap');
                         setBaseCharacter(preset.id);
                         setAvatarColor(preset.defaultColor);
                       }}
@@ -299,7 +281,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                     type="button"
                     aria-label={c.label}
                     onClick={() => {
-                      soundEngine.vibrate('tap');
                       setAvatarColor(c.hex);
                     }}
                     style={{ backgroundColor: c.hex }}
@@ -326,7 +307,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                       key={acc.id}
                       type="button"
                       onClick={() => {
-                        soundEngine.vibrate('tap');
                         setAvatarAccessory(acc.id);
                       }}
                       className={`min-h-[42px] px-1 py-1 rounded-xl border text-[10px] font-extrabold flex flex-col items-center justify-center ${
@@ -449,13 +429,13 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
         isEmbeddedPiP ? 'h-full' : 'min-h-screen'
       } w-full bg-gradient-to-b from-[#0284C7] via-[#072B59] to-[#0A192F] text-[#F8FAFC] flex flex-col justify-between p-3.5 sm:p-5 select-none`}
     >
-      {/* Top Bar WITH "Retornar à Apresentação na TV" button (fixes Image 3!) */}
-      <header className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-[#0F172A]/95 border-2 border-sky-400/50">
+      {/* Clean, Uncluttered Top Bar on Mobile (Only Avatar/Name/Sala on Left + Points on Right — Fixes Image 2!) */}
+      <header className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#0F172A]/95 border-2 border-sky-400/50">
         <div className="flex items-center gap-2.5 min-w-0">
-          <AvatarIcon avatarId={myPlayer.avatarId} className="w-10 h-10 shrink-0" />
+          <AvatarIcon avatarId={myPlayer.avatarId} className="w-11 h-11 shrink-0" />
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="font-display font-black text-sm text-white truncate">
+              <span className="font-display font-black text-base text-white truncate">
                 {myPlayer.name}
               </span>
               {myPlayer.isHost && (
@@ -470,33 +450,11 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {!isEmbeddedPiP && <PWAInstallButton compact />}
-          {!isEmbeddedPiP && onSwitchToTvMode && (
-            <button
-              type="button"
-              onClick={onSwitchToTvMode}
-              className="cube-3d min-h-[42px] px-3.5 py-1.5 rounded-xl bg-[#FFD600] hover:bg-[#FACC15] text-slate-950 font-display font-black text-xs flex items-center gap-1.5 whitespace-nowrap"
-            >
-              <Tv className="w-4 h-4" />
-              <span>Apresentação na TV</span>
-            </button>
-          )}
-
-          <div className="text-right px-3 py-1 rounded-xl bg-slate-900 border border-slate-700">
-            <div className="text-[10px] font-bold text-sky-300">PONTOS</div>
-            <div className="font-mono font-black text-sm text-[#FFD600] tabular-nums">
-              {myPlayer.score}
-            </div>
+        <div className="text-right px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 shrink-0">
+          <div className="text-[10px] font-bold text-sky-300">PONTOS</div>
+          <div className="font-mono font-black text-base text-[#FFD600] tabular-nums">
+            {myPlayer.score}
           </div>
-          <button
-            type="button"
-            onClick={handleToggleMute}
-            aria-label={muted ? 'Ativar som' : 'Silenciar'}
-            className="min-h-[42px] min-w-[42px] rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-white"
-          >
-            {muted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
-          </button>
         </div>
       </header>
 
@@ -545,7 +503,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                         key={mod.id}
                         type="button"
                         onClick={() => {
-                          soundEngine.vibrate('tap');
                           onConfigureGame({ moduleId: mod.id });
                         }}
                         style={{
@@ -587,7 +544,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                       key={d.id}
                       type="button"
                       onClick={() => {
-                        soundEngine.vibrate('tap');
                         onConfigureGame({ difficulty: d.id });
                       }}
                       className={`min-h-[44px] px-2 py-1.5 rounded-xl text-xs font-extrabold border-2 transition-colors whitespace-nowrap ${
@@ -604,8 +560,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    soundEngine.vibrate('success');
-                    soundEngine.playNewQuestion();
                     onStartGame();
                   }}
                   className="cube-3d w-full min-h-[60px] rounded-3xl bg-[#22C55E] hover:bg-[#16A34A] border-3 border-white text-white font-display font-black text-lg flex items-center justify-center gap-2 transition-transform active:scale-95 whitespace-nowrap"
@@ -688,8 +642,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                       type="button"
                       whileTap={{ scale: 0.92, y: 4 }}
                       onClick={() => {
-                        soundEngine.vibrate('tap');
-                        soundEngine.playBuzzerLock(myPlayer.slotIndex);
                         onSelectAnswer(meta.index);
                       }}
                       style={{ backgroundColor: meta.hexColor }}
@@ -729,73 +681,69 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
               </motion.div>
             )}
 
-            {/* 3 TACTICAL SINGLE-USE POWER-UP BUTTONS */}
-            <div className="pt-1">
-              <div className="text-[11px] font-extrabold text-sky-200 mb-1.5 text-center">
-                Ajudas Especiais (1 uso por partida):
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  disabled={hasAnswered || myPlayer.powerUpsUsed?.FIFTY_FIFTY}
-                  onClick={() => {
-                    soundEngine.vibrate('powerup');
-                    soundEngine.playPowerUp();
-                    onUsePowerUp('FIFTY_FIFTY');
-                  }}
-                  className={`min-h-[64px] p-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
-                    myPlayer.powerUpsUsed?.FIFTY_FIFTY
-                      ? 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-50'
-                      : 'bg-[#A855F7] hover:bg-[#9333EA] border-white text-white cube-3d'
-                  }`}
-                >
-                  <Scissors className="w-5 h-5" />
-                  <span className="text-[11px] font-black leading-none whitespace-nowrap">
-                    Cortar 2 (50/50)
-                  </span>
-                </button>
+            {/* 3 TACTICAL SINGLE-USE POWER-UP BUTTONS (Shown only while choosing an answer) */}
+            {!hasAnswered && (
+              <div className="pt-1">
+                <div className="text-[11px] font-extrabold text-sky-200 mb-1.5 text-center">
+                  Ajudas Especiais (1 uso por partida):
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    disabled={myPlayer.powerUpsUsed?.FIFTY_FIFTY}
+                    onClick={() => {
+                      onUsePowerUp('FIFTY_FIFTY');
+                    }}
+                    className={`min-h-[60px] p-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
+                      myPlayer.powerUpsUsed?.FIFTY_FIFTY
+                        ? 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-50'
+                        : 'bg-[#A855F7] hover:bg-[#9333EA] border-white text-white cube-3d'
+                    }`}
+                  >
+                    <Scissors className="w-5 h-5" />
+                    <span className="text-[11px] font-black leading-none whitespace-nowrap">
+                      Cortar 2 (50/50)
+                    </span>
+                  </button>
 
-                <button
-                  type="button"
-                  disabled={hasAnswered || myPlayer.powerUpsUsed?.FREEZE_TIME}
-                  onClick={() => {
-                    soundEngine.vibrate('powerup');
-                    soundEngine.playPowerUp();
-                    onUsePowerUp('FREEZE_TIME');
-                  }}
-                  className={`min-h-[64px] p-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
-                    myPlayer.powerUpsUsed?.FREEZE_TIME
-                      ? 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-50'
-                      : 'bg-[#007AFF] hover:bg-[#0284C7] border-white text-white cube-3d'
-                  }`}
-                >
-                  <Snowflake className="w-5 h-5" />
-                  <span className="text-[11px] font-black leading-none whitespace-nowrap">
-                    +5 Segundos
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    disabled={myPlayer.powerUpsUsed?.FREEZE_TIME}
+                    onClick={() => {
+                      onUsePowerUp('FREEZE_TIME');
+                    }}
+                    className={`min-h-[60px] p-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
+                      myPlayer.powerUpsUsed?.FREEZE_TIME
+                        ? 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-50'
+                        : 'bg-[#007AFF] hover:bg-[#0284C7] border-white text-white cube-3d'
+                    }`}
+                  >
+                    <Snowflake className="w-5 h-5" />
+                    <span className="text-[11px] font-black leading-none whitespace-nowrap">
+                      +5 Segundos
+                    </span>
+                  </button>
 
-                <button
-                  type="button"
-                  disabled={hasAnswered || myPlayer.powerUpsUsed?.DOUBLE_STARS}
-                  onClick={() => {
-                    soundEngine.vibrate('powerup');
-                    soundEngine.playPowerUp();
-                    onUsePowerUp('DOUBLE_STARS');
-                  }}
-                  className={`min-h-[64px] p-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
-                    myPlayer.powerUpsUsed?.DOUBLE_STARS
-                      ? 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-50'
-                      : 'bg-[#F97316] hover:bg-[#EA580C] border-white text-white cube-3d'
-                  }`}
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span className="text-[11px] font-black leading-none whitespace-nowrap">
-                    Estrela 2x
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    disabled={myPlayer.powerUpsUsed?.DOUBLE_STARS}
+                    onClick={() => {
+                      onUsePowerUp('DOUBLE_STARS');
+                    }}
+                    className={`min-h-[60px] p-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
+                      myPlayer.powerUpsUsed?.DOUBLE_STARS
+                        ? 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-50'
+                        : 'bg-[#F97316] hover:bg-[#EA580C] border-white text-white cube-3d'
+                    }`}
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    <span className="text-[11px] font-black leading-none whitespace-nowrap">
+                      Estrela 2x
+                    </span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
 
@@ -902,10 +850,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                       medalId={mId}
                       size="md"
                       delay={idx * 0.15}
-                      onClick={() => {
-                        soundEngine.vibrate('success');
-                        soundEngine.playMedalFanfare();
-                      }}
                     />
                   ))}
                 </div>
@@ -937,7 +881,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      soundEngine.vibrate('success');
                       onContinueDecision(true);
                     }}
                     className="cube-3d min-h-[56px] px-4 py-3 rounded-2xl bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white font-display font-black text-sm flex items-center justify-center gap-2"
@@ -949,7 +892,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      soundEngine.vibrate('tap');
                       onContinueDecision(false);
                     }}
                     className="cube-3d min-h-[56px] px-4 py-3 rounded-2xl bg-[#EF4444] hover:bg-[#DC2626] border-2 border-white text-white font-display font-black text-sm flex items-center justify-center gap-2"

@@ -5,9 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ACHIEVEMENT_MEDALS,
   DifficultyLevel,
-  evaluatePlayerMedals,
   GameMode,
   LearningModuleId,
   PowerUpType,
@@ -59,22 +57,22 @@ export default function App() {
   const prevPlayersCountRef = useRef<number>(0);
   const prevAnsweredCountRef = useRef<number>(0);
 
+  useEffect(() => {
+    soundEngine.setControllerMode(viewMode === 'CONTROLLER');
+  }, [viewMode]);
+
   const applyIncomingState = useCallback((nextState: RoomState) => {
     activeRoomCodeRef.current = nextState.code;
     window.sessionStorage.setItem('mathshow_room_code', nextState.code);
 
-    // Player joined celebration + Narrator welcome
+    // Player joined celebration on TV
     if (nextState.players.length > prevPlayersCountRef.current) {
-      const newest = nextState.players[nextState.players.length - 1];
       soundEngine.playPlayerJoin();
       setBurstTrigger((c) => c + 1);
-      if (newest) {
-        soundEngine.speak(`${newest.name} entrou no jogo!`, false);
-      }
     }
     prevPlayersCountRef.current = nextState.players.length;
 
-    // Player locked in answer
+    // Player locked in answer on TV
     const answeredNow = nextState.players.filter((p) => p.currentAnswer !== null).length;
     if (
       nextState.status === 'QUESTION_ACTIVE' &&
@@ -85,7 +83,7 @@ export default function App() {
     }
     prevAnsweredCountRef.current = answeredNow;
 
-    // New Question Spoken Narration (Text-to-Speech TV Presenter)
+    // New Question Start: Chime on TV + Gentle vibration ("leve tremida") on Mobile Controller
     if (
       nextState.status === 'QUESTION_ACTIVE' &&
       nextState.currentQuestion &&
@@ -93,10 +91,10 @@ export default function App() {
     ) {
       prevQuestionIdRef.current = nextState.currentQuestion.id;
       soundEngine.playNewQuestion();
-      soundEngine.speak(nextState.currentQuestion.speechText, true);
+      soundEngine.vibrate('question_start');
     }
 
-    // Round Reveal & Victory Transitions with 3D Medals Fanfare & Confetti
+    // Round Reveal & Victory Transitions with 3D Medals Fanfare & Confetti on TV
     if (nextState.status !== prevStatusRef.current) {
       if (nextState.status === 'ROUND_REVEAL') {
         const q = nextState.currentQuestion;
@@ -104,43 +102,19 @@ export default function App() {
           q && nextState.players.some((p) => p.currentAnswer === q.correctIndex)
         );
         soundEngine.playRoundReveal(anyRight);
-        soundEngine.vibrate(anyRight ? 'success' : 'encourage');
         setShakeTrigger((s) => s + 1);
         if (anyRight) {
           setBurstTrigger((c) => c + 1);
         }
-        if (q) {
-          soundEngine.speak(
-            anyRight
-              ? `Muito bem! A resposta certa é ${q.correctAnswer}!`
-              : `A resposta certa é ${q.correctAnswer}. Vamos tentar a próxima!`,
-            true
-          );
-        }
       } else if (nextState.status === 'GAME_OVER') {
         soundEngine.playVictoryFanfare();
-        soundEngine.vibrate('success');
         setBurstTrigger((c) => c + 1);
 
-        // Additional confetti & 3D medal fanfare wave
+        // Additional confetti & 3D medal fanfare wave on TV
         setTimeout(() => {
           soundEngine.playMedalFanfare();
           setBurstTrigger((c) => c + 1);
         }, 750);
-
-        const sorted = [...nextState.players].sort((a, b) => b.score - a.score);
-        if (sorted[0]) {
-          const topMedals =
-            sorted[0].medals && sorted[0].medals.length > 0
-              ? sorted[0].medals
-              : evaluatePlayerMedals(sorted[0], nextState.settings.totalRounds);
-          const firstMedalTitle =
-            ACHIEVEMENT_MEDALS[topMedals[0]]?.title || 'Construtor Dedicado';
-          soundEngine.speak(
-            `Fim do jogo! Parabéns ${sorted[0].name}, vencedor com a medalha 3D ${firstMedalTitle}! Confirme no celular se deseja continuar na próxima jogada.`,
-            true
-          );
-        }
       }
       prevStatusRef.current = nextState.status;
     }

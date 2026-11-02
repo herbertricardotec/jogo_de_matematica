@@ -31,8 +31,6 @@ import {
   Crown,
   Home,
   Lock,
-  Mic,
-  MicOff,
   Pause,
   Play,
   QrCode,
@@ -167,7 +165,6 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
 }) => {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [muted, setMuted] = useState<boolean>(soundEngine.isMuted());
-  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(soundEngine.isVoiceEnabled());
   const [remainingSec, setRemainingSec] = useState<number>(18);
   const [remainingRatio, setRemainingRatio] = useState<number>(1);
   const [gameOverLeftSec, setGameOverLeftSec] = useState<number>(25);
@@ -339,39 +336,19 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
     setMuted(soundEngine.toggleMute());
   };
 
-  const handleToggleVoice = () => {
-    setVoiceEnabled(soundEngine.toggleVoice());
-  };
-
   const question = roomState.currentQuestion;
   const activeModuleMeta =
     LEARNING_MODULES.find((m) => m.id === roomState.settings.moduleId) || LEARNING_MODULES[0];
 
-  // Helper to render the 3D Equation WITHOUT duplicate `= ?` (Fixes Image 1!)
+  // Render the 3D Equation on the TV — NEVER show the player's selected phone answer during QUESTION_ACTIVE!
+  // Only reveal the answer on the TV when status === 'ROUND_REVEAL'.
   const renderTvEquation = () => {
     if (!question) return null;
     const isReveal = roomState.status === 'ROUND_REVEAL';
 
-    // Find if any player already answered so we can preview or show '?'
-    const firstAnsweredPlayer = roomState.players.find((p) => p.currentAnswer !== null);
-    const previewSelectedOption =
-      firstAnsweredPlayer && firstAnsweredPlayer.currentAnswer !== null
-        ? question.options[firstAnsweredPlayer.currentAnswer]
-        : null;
-
     if (question.equationFormat === 'MISSING_ADDEND') {
-      // Module 1: e.g. `3 + [ ? ] = 4` -> when answered or revealed, the number goes BEFORE `= 4`!
-      const slotDisplay = isReveal
-        ? question.correctAnswer
-        : previewSelectedOption !== null
-        ? previewSelectedOption
-        : '?';
-
-      const slotColor = isReveal
-        ? '#22C55E'
-        : previewSelectedOption !== null
-        ? '#007AFF'
-        : '#FFD600';
+      const slotDisplay = isReveal ? question.correctAnswer : '?';
+      const slotColor = isReveal ? '#22C55E' : '#FFD600';
 
       return (
         <div className="inline-flex flex-wrap items-center justify-center gap-3 sm:gap-4 font-display font-black text-4xl sm:text-5xl lg:text-6xl tracking-tight text-white tabular-nums">
@@ -395,17 +372,8 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
     }
 
     // Standard Result format (Modules 2, 3, 4): e.g. `4 + 3 = [ ? ]`
-    const resultDisplay = isReveal
-      ? question.correctAnswer
-      : previewSelectedOption !== null
-      ? previewSelectedOption
-      : '?';
-
-    const resultColor = isReveal
-      ? '#22C55E'
-      : previewSelectedOption !== null
-      ? '#007AFF'
-      : '#FFD600';
+    const resultDisplay = isReveal ? question.correctAnswer : '?';
+    const resultColor = isReveal ? '#22C55E' : '#FFD600';
 
     return (
       <div className="inline-flex flex-wrap items-center justify-center gap-3 sm:gap-4 font-display font-black text-4xl sm:text-5xl lg:text-6xl tracking-tight text-white tabular-nums">
@@ -505,21 +473,6 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
             <span>{showVirtualPhone ? 'Fechar Celular Virtual' : 'Testar Celular na Tela'}</span>
           </button>
 
-          <button
-            type="button"
-            data-tv-focusable="true"
-            onClick={handleToggleVoice}
-            title="Narrador de Voz em Português"
-            className={`tv-focusable min-h-[40px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 whitespace-nowrap ${
-              voiceEnabled && !muted
-                ? 'bg-emerald-600/90 border-emerald-300 text-white'
-                : 'bg-slate-800 border-slate-700 text-slate-400'
-            }`}
-          >
-            {voiceEnabled && !muted ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-            <span className="hidden xl:inline">Voz</span>
-          </button>
-
           {(roomState.status === 'QUESTION_ACTIVE' || roomState.status === 'PAUSED') && (
             <button
               type="button"
@@ -562,9 +515,6 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                 data-tv-primary="true"
                 onClick={() => {
                   soundEngine.playPlayerJoin();
-                  soundEngine.speak(
-                    'Bem-vindos ao Jogo de Matemática! Conectem os celulares pelo QR Code ou escolham um módulo para começar!'
-                  );
                   onSetStatus('LOBBY');
                 }}
                 className="tv-focusable cube-3d min-h-[64px] px-12 py-3.5 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-4 border-white text-white font-display font-black text-2xl tracking-wide flex items-center gap-3 shadow-2xl transition-transform active:scale-95 whitespace-nowrap"
