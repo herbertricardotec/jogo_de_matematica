@@ -369,6 +369,17 @@ export default function App() {
     [sendAction]
   );
 
+  const handleAdminKickPlayer = useCallback(
+    (targetPlayerId: string) => {
+      sendAction({ type: 'admin:kick_player', playerId: targetPlayerId });
+    },
+    [sendAction]
+  );
+
+  const handleAdminRotatePin = useCallback(() => {
+    sendAction({ type: 'admin:rotate_pin' });
+  }, [sendAction]);
+
   if (viewMode === 'CONTROLLER') {
     return (
       <MobileControllerView
@@ -384,10 +395,6 @@ export default function App() {
         onStartGame={handleStartGame}
         onRestartGame={handleRestartGame}
         onNextRound={handleNextRound}
-        onSwitchToTvMode={() => {
-          setViewMode('TV');
-          sendAction({ type: 'room:create', code: roomState?.code });
-        }}
       />
     );
   }
@@ -426,6 +433,8 @@ export default function App() {
       onNextRound={handleNextRound}
       onLocalTvAnswer={(idx) => handleSelectAnswer(idx, effectiveRoomState.players[0]?.id)}
       onSwitchToFullMobile={() => setViewMode('CONTROLLER')}
+      onAdminKickPlayer={handleAdminKickPlayer}
+      onAdminRotatePin={handleAdminRotatePin}
       simPlayerId={simPlayerId}
       simError={errorMessage}
       onSimJoin={(code, name, avatarId) => handleJoinRoom(code, name, avatarId, simPlayerId)}

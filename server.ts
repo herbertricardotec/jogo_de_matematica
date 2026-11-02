@@ -550,10 +550,7 @@ async function startServer() {
               const removedPlayer = currentRoom.state.players[playerIndex];
               currentRoom.state.players.splice(playerIndex, 1);
 
-              // Reassign slot indices & host if needed
-              currentRoom.state.players.forEach((p, idx) => {
-                p.slotIndex = idx;
-              });
+              // If host left, assign host to another connected player without shifting slotIndex
               if (
                 removedPlayer.isHost &&
                 currentRoom.state.players.length > 0 &&
@@ -589,6 +586,48 @@ async function startServer() {
 
               broadcastRoomState(currentRoom);
             }
+            break;
+          }
+
+          case 'admin:kick_player': {
+            if (!currentRoom) return;
+            const targetId = String(msg.playerId || '');
+            const playerIndex = currentRoom.state.players.findIndex((p) => p.id === targetId);
+            if (playerIndex === -1) return;
+
+            const kickedPlayer = currentRoom.state.players[playerIndex];
+            currentRoom.state.players.splice(playerIndex, 1);
+
+            if (
+              kickedPlayer.isHost &&
+              currentRoom.state.players.length > 0 &&
+              !currentRoom.state.players.some((p) => p.isHost)
+            ) {
+              currentRoom.state.players[0].isHost = true;
+            }
+
+            const kickedSocket = currentRoom.playerSockets.get(kickedPlayer.id);
+            if (kickedSocket && kickedSocket.readyState === WebSocket.OPEN) {
+              kickedSocket.send(
+                JSON.stringify({
+                  type: 'player:logged_out',
+                  playerId: kickedPlayer.id,
+                  newRoomCode: currentRoom.state.code,
+                })
+              );
+            }
+            currentRoom.playerSockets.delete(kickedPlayer.id);
+            currentRoom.state.lastPowerUpAnnouncement = `${kickedPlayer.name} foi desconectado pelo Painel Administrativo.`;
+
+            broadcastRoomState(currentRoom);
+            break;
+          }
+
+          case 'admin:rotate_pin': {
+            if (!currentRoom) return;
+            const newPinCode = rotateRoomPinCode(currentRoom);
+            currentRoom.state.lastPowerUpAnnouncement = `Novo código PIN gerado: ${newPinCode}`;
+            broadcastRoomState(currentRoom);
             break;
           }
 

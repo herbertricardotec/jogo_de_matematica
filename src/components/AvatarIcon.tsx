@@ -749,14 +749,14 @@ export const KidsMathSplashHero: React.FC<{ className?: string }> = ({
 );
 
 /**
- * MgnetSoftware Footer Badge
+ * MagnetSoftware Footer Badge
  */
 export const MgnetSoftwareBadge: React.FC<{ onOpenParentalGate?: () => void }> = ({
   onOpenParentalGate,
 }) => (
   <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-2xl bg-[#0A192F] border-2 border-[#FFD600]/80 shadow-md">
     <span className="font-display font-bold text-xs tracking-wider text-white">
-      Mgnet<span className="text-[#FFD600]">Software</span>
+      Magnet<span className="text-[#FFD600]">Software</span>
     </span>
     <span className="text-slate-500" aria-hidden="true">
       ·

@@ -339,7 +339,9 @@ export default async function handler(req: IncomingMessage & { body?: any; query
         existing.color = extractColorFromAvatarId(avatarId, existing.slotIndex);
         existing.isConnected = true;
       } else {
-        const slotIndex = room.players.length;
+        const usedSlots = new Set(room.players.map((p) => p.slotIndex));
+        let slotIndex = 0;
+        while (usedSlots.has(slotIndex) && slotIndex < 4) slotIndex++;
         existing = {
           id: playerId,
           name,
@@ -368,6 +370,22 @@ export default async function handler(req: IncomingMessage & { body?: any; query
       }
       if (room.status === 'TITLE_MENU') room.status = 'LOBBY';
       room.lastUpdatedAt = Date.now();
+    } else if (type === 'admin:kick_player') {
+      const idx = room.players.findIndex((p) => p.id === body.playerId);
+      if (idx !== -1) {
+        const removed = room.players[idx];
+        room.players.splice(idx, 1);
+        if (removed.isHost && room.players.length > 0 && !room.players.some((p) => p.isHost)) {
+          room.players[0].isHost = true;
+        }
+        room.lastPowerUpAnnouncement = `${removed.name} foi desconectado pelo Painel Administrativo.`;
+      }
+    } else if (type === 'admin:rotate_pin') {
+      const newPin = generatePinCode();
+      rooms.delete(room.code);
+      room.code = newPin;
+      rooms.set(newPin, room);
+      room.lastPowerUpAnnouncement = `Novo código PIN gerado: ${newPin}`;
     } else if (type === 'game:set_status') {
       if (body.status === 'LOBBY' || body.status === 'TITLE_MENU') {
         room.status = body.status;

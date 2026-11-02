@@ -31,10 +31,12 @@ import {
   Crown,
   Home,
   Lock,
+  LogOut,
   Pause,
   Play,
   QrCode,
   RotateCcw,
+  Settings,
   Smartphone,
   Sparkles,
   Trophy,
@@ -60,6 +62,8 @@ interface FireTvStageViewProps {
   onNextRound: () => void;
   onLocalTvAnswer: (optionIndex: number) => void;
   onSwitchToFullMobile: () => void;
+  onAdminKickPlayer: (playerId: string) => void;
+  onAdminRotatePin: () => void;
   // Built-in PiP Virtual Phone Simulator props
   simPlayerId: string;
   simError: string | null;
@@ -155,6 +159,8 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   onNextRound,
   onLocalTvAnswer,
   onSwitchToFullMobile,
+  onAdminKickPlayer,
+  onAdminRotatePin,
   simPlayerId,
   simError,
   onSimJoin,
@@ -170,6 +176,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   const [gameOverLeftSec, setGameOverLeftSec] = useState<number>(25);
   const [gameOverRatio, setGameOverRatio] = useState<number>(1);
   const [showVirtualPhone, setShowVirtualPhone] = useState<boolean>(false);
+  const [showAdminPanel, setShowAdminPanel] = useState<boolean>(false);
 
   // Parental Gate Modal State
   const [showParentalGate, setShowParentalGate] = useState<boolean>(false);
@@ -337,8 +344,6 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   };
 
   const question = roomState.currentQuestion;
-  const activeModuleMeta =
-    LEARNING_MODULES.find((m) => m.id === roomState.settings.moduleId) || LEARNING_MODULES[0];
 
   // Render the 3D Equation on the TV — NEVER show the player's selected phone answer during QUESTION_ACTIVE!
   // Only reveal the answer on the TV when status === 'ROUND_REVEAL'.
@@ -406,7 +411,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
 
       {/* TOP BAR HUD + ALWAYS-VISIBLE RECONNECTION QR CODE WIDGET */}
       <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 lg:px-8 py-2.5 border-b-2 border-white/15 bg-[#0A192F]/95">
-        {/* Left Zone: Prominent Brand Name & Active Module */}
+        {/* Left Zone: Prominent Brand Name (Removed "Módulo 1: Conhecendo os Números" per user request!) */}
         <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
@@ -421,17 +426,16 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               Jogo de <span className="text-[#FFD600]">Matemática</span>
             </span>
           </button>
-          <span className="hidden md:inline text-slate-500" aria-hidden="true">
-            ·
-          </span>
-          <span className="hidden md:inline text-xs font-extrabold text-sky-200 whitespace-nowrap">
-            {activeModuleMeta.numberLabel}:{' '}
-            <strong className="text-white">{activeModuleMeta.title}</strong>
-          </span>
         </div>
 
-        {/* Center Zone: ALWAYS-VISIBLE RECONNECTION QR CODE & PIN PILL */}
-        <div className="flex items-center gap-3 px-3.5 py-1 rounded-2xl bg-[#0F172A] border-2 border-[#FFD600] shadow-md">
+        {/* Center Zone: ALWAYS-VISIBLE RECONNECTION QR CODE & PIN PILL (Click opens Admin Panel) */}
+        <button
+          type="button"
+          data-tv-focusable="true"
+          onClick={() => setShowAdminPanel(true)}
+          title="Abrir Tela Administrativa dos 4 Jogadores"
+          className="tv-focusable flex items-center gap-3 px-3.5 py-1 rounded-2xl bg-[#0F172A] hover:bg-slate-900 border-2 border-[#FFD600] shadow-md text-left transition-transform active:scale-95"
+        >
           {qrDataUrl && (
             <img
               src={qrDataUrl}
@@ -454,10 +458,24 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               </span>
             </div>
           </div>
-        </div>
+        </button>
 
-        {/* Right Zone: PWA Install/Fullscreen, Voice Narrator, Simulator & Audio Controls */}
+        {/* Right Zone: Admin Panel, PWA Install/Fullscreen, Simulator & Audio Controls */}
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            data-tv-focusable="true"
+            onClick={() => setShowAdminPanel((v) => !v)}
+            className={`tv-focusable min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+              showAdminPanel
+                ? 'bg-[#FFD600] text-slate-950 border-2 border-white'
+                : 'bg-[#A855F7] hover:bg-[#9333EA] text-white border border-white/40'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            <span>Painel Admin</span>
+          </button>
+
           <PWAInstallButton />
           <button
             type="button"
@@ -1126,17 +1144,216 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                   </div>
                 </div>
 
-                <div className="text-right shrink-0">
-                  <div className="text-[10px] font-bold text-sky-200">PONTOS</div>
-                  <div className="font-mono font-black text-base text-white tabular-nums">
-                    {player.score}
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold text-sky-200">PONTOS</div>
+                    <div className="font-mono font-black text-base text-white tabular-nums">
+                      {player.score}
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    data-tv-focusable="true"
+                    onClick={() => onAdminKickPlayer(player.id)}
+                    title={`Fazer Logoff de ${player.name}`}
+                    className="tv-focusable p-2 rounded-xl bg-red-600/90 hover:bg-red-500 border border-white/50 text-white transition-transform active:scale-95"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             );
           })}
         </section>
       </main>
+
+      {/* TELA ADMINISTRATIVA — CONTROLE DOS 4 JOGADORES (QR CODE + PIN + AVATAR + PONTUAÇÃO + LOGOFF) */}
+      {showAdminPanel && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="max-w-6xl w-full rounded-3xl bg-[#0F172A] border-4 border-[#FFD600] p-5 sm:p-6 space-y-5 shadow-2xl panel-3d">
+            {/* Admin Header */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/15 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#A855F7] border-2 border-white flex items-center justify-center text-white shadow-lg">
+                  <Settings className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="text-xs font-black uppercase text-[#FFD600]">
+                    MagnetSoftware · Gerenciamento da Sala
+                  </div>
+                  <h2 className="font-display font-black text-2xl sm:text-3xl text-white">
+                    Tela Administrativa — Controle dos 4 Jogadores
+                  </h2>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  data-tv-focusable="true"
+                  onClick={() => {
+                    soundEngine.playTick();
+                    onAdminRotatePin();
+                  }}
+                  className="tv-focusable cube-3d min-h-[44px] px-4 py-2 rounded-2xl bg-[#007AFF] hover:bg-[#0284C7] border-2 border-white text-xs font-black text-white flex items-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Gerar Novo PIN / QR Code ({roomState.code})</span>
+                </button>
+
+                {roomState.players.length > 0 && (
+                  <button
+                    type="button"
+                    data-tv-focusable="true"
+                    onClick={() => {
+                      soundEngine.playTick();
+                      roomState.players.forEach((p) => onAdminKickPlayer(p.id));
+                    }}
+                    className="tv-focusable cube-3d min-h-[44px] px-4 py-2 rounded-2xl bg-[#EF4444] hover:bg-[#DC2626] border-2 border-white text-xs font-black text-white flex items-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logoff de Todos</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  data-tv-focusable="true"
+                  onClick={() => setShowAdminPanel(false)}
+                  className="tv-focusable cube-3d min-h-[44px] px-4 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 border-2 border-white/40 text-xs font-black text-white flex items-center gap-1.5"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Fechar Painel</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Player Control Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[0, 1, 2, 3].map((slotIdx) => {
+                const player = roomState.players.find((p) => p.slotIndex === slotIdx);
+                const slotColors = ['#007AFF', '#FFD600', '#EF4444', '#22C55E'];
+                const badgeHex = slotColors[slotIdx];
+
+                if (!player) {
+                  // JOGADOR NÃO LOGADO: Mostra QR Code e Código PIN da vaga!
+                  return (
+                    <div
+                      key={slotIdx}
+                      className="rounded-3xl bg-[#071936] border-3 border-dashed border-sky-400/50 p-4 flex flex-col items-center justify-between text-center space-y-3 panel-3d"
+                    >
+                      <div className="w-full flex items-center justify-between border-b border-white/10 pb-2">
+                        <div className="flex items-center gap-2">
+                          <NumberCube3D number={slotIdx + 1} colorHex={badgeHex} size="sm" />
+                          <span className="font-display font-black text-base text-white">
+                            Jogador {slotIdx + 1}
+                          </span>
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400 text-[11px] font-black text-[#FFD600]">
+                          Aguardando Login
+                        </span>
+                      </div>
+
+                      {qrDataUrl && (
+                        <div className="p-2.5 rounded-2xl bg-white shadow-lg">
+                          <img
+                            src={qrDataUrl}
+                            alt={`QR Code Jogador ${slotIdx + 1} - PIN ${roomState.code}`}
+                            referrerPolicy="no-referrer"
+                            className="w-32 h-32 sm:w-36 sm:h-36 object-contain"
+                          />
+                        </div>
+                      )}
+
+                      <div className="w-full rounded-2xl bg-[#0F172A] border-2 border-[#FFD600] py-2 px-3">
+                        <div className="text-[10px] font-extrabold text-sky-300 uppercase">
+                          Código PIN para Conectar:
+                        </div>
+                        <div className="font-mono font-black text-3xl text-[#FFD600] tracking-widest tabular-nums">
+                          {roomState.code}
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] font-semibold text-sky-200 leading-snug">
+                        Escaneie o QR Code com o celular para assumir o Controle #{slotIdx + 1}
+                      </p>
+                    </div>
+                  );
+                }
+
+                // JOGADOR LOGADO: Mostra Avatar 3D, Nome, Pontuação e Botão de Logoff (Desconectar)!
+                return (
+                  <div
+                    key={player.id}
+                    className="rounded-3xl bg-gradient-to-b from-[#0F172A] to-[#1E293B] border-3 border-[#22C55E] p-4 flex flex-col justify-between text-center space-y-3 panel-3d"
+                  >
+                    <div className="w-full flex items-center justify-between border-b border-white/10 pb-2">
+                      <div className="flex items-center gap-2">
+                        <NumberCube3D number={slotIdx + 1} colorHex={badgeHex} size="sm" />
+                        <span className="font-display font-black text-base text-white">
+                          Jogador {slotIdx + 1}
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400 text-[11px] font-black text-emerald-300">
+                        ● Online
+                      </span>
+                    </div>
+
+                    {/* Player 3D Avatar & Name */}
+                    <div className="flex flex-col items-center space-y-1.5 py-1">
+                      <div className="p-1.5 rounded-2xl bg-slate-900 border-2 border-[#FFD600] shadow-md">
+                        <AvatarIcon avatarId={player.avatarId} className="w-20 h-20" />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-display font-black text-xl text-white">
+                          {player.name}
+                        </h3>
+                        {player.isHost && (
+                          <Crown className="w-4 h-4 text-[#FFD600]" title="Líder da Sala" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Player Score & Stats */}
+                    <div className="grid grid-cols-2 gap-2 w-full bg-slate-950/80 p-2.5 rounded-2xl border border-white/15 tabular-nums">
+                      <div>
+                        <div className="text-[10px] font-bold text-sky-300 uppercase">
+                          Pontuação
+                        </div>
+                        <div className="font-mono font-black text-xl text-[#22C55E]">
+                          {player.score} pts
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-sky-300 uppercase">
+                          Estrelas / Acertos
+                        </div>
+                        <div className="font-mono font-black text-base text-[#FFD600]">
+                          ⭐ {player.stars} · {player.correctCount}✓
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Logoff / Disconnect Player Button */}
+                    <button
+                      type="button"
+                      data-tv-focusable="true"
+                      onClick={() => {
+                        soundEngine.playTick();
+                        onAdminKickPlayer(player.id);
+                      }}
+                      className="tv-focusable cube-3d w-full min-h-[48px] px-4 py-2.5 rounded-2xl bg-[#EF4444] hover:bg-[#DC2626] border-2 border-white text-white font-display font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Fazer Logoff (Desconectar)</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PARENTAL GATE MODAL */}
       {showParentalGate && (
@@ -1146,7 +1363,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               <Lock className="w-6 h-6" />
             </div>
             <h2 className="font-display font-black text-2xl text-white">
-              Verificação Parental (MgnetSoftware)
+              Verificação Parental (MagnetSoftware)
             </h2>
             {!parentalUnlocked ? (
               <>

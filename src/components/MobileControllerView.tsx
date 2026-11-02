@@ -36,7 +36,6 @@ import {
   Snowflake,
   Sparkles,
   Star,
-  Tv,
 } from 'lucide-react';
 
 interface MobileControllerViewProps {
@@ -161,20 +160,10 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
           isEmbeddedPiP ? 'h-full' : 'min-h-screen'
         } w-full bg-gradient-to-b from-[#007AFF] via-[#072B59] to-[#0A192F] text-[#F8FAFC] flex flex-col justify-between p-4 sm:p-6`}
       >
-        <header className="flex items-center justify-between gap-2 pb-3 border-b border-white/15">
+        <header className="flex items-center justify-center pb-3 border-b border-white/15">
           <span className="title-3d-yellow font-display font-black text-xl tracking-tight whitespace-nowrap shrink-0">
             Jogo de Matemática
           </span>
-          {!isEmbeddedPiP && onSwitchToTvMode && (
-            <button
-              type="button"
-              onClick={onSwitchToTvMode}
-              className="cube-3d min-h-[40px] px-3 py-1.5 rounded-2xl bg-[#FFD600] hover:bg-[#FACC15] text-xs font-black text-slate-950 flex items-center gap-1.5 whitespace-nowrap shrink-0"
-            >
-              <Tv className="w-4 h-4" />
-              <span>Ver Tela TV</span>
-            </button>
-          )}
         </header>
 
         <form onSubmit={handleJoinSubmit} className="my-auto py-3 max-w-md w-full mx-auto space-y-4">
@@ -463,29 +452,16 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
         {/* STATE A: LOBBY / MODULE SELECTION WITH COMPLETE MODULE DESCRIPTIONS */}
         {(roomState.status === 'LOBBY' || roomState.status === 'TITLE_MENU') && (
           <div className="flex-1 flex flex-col justify-between gap-3 bg-[#0F172A]/95 border-2 border-sky-400/40 rounded-3xl p-4 panel-3d">
-            <div className="flex items-center justify-between gap-3 bg-slate-900/90 p-3 rounded-2xl border border-white/15">
-              <div className="flex items-center gap-3">
-                <AvatarIcon avatarId={myPlayer.avatarId} className="w-12 h-12 shrink-0" />
-                <div>
-                  <h2 className="font-display text-lg font-black text-white">
-                    Controle #{myPlayer.slotIndex + 1} Pronto!
-                  </h2>
-                  <p className="text-xs text-sky-200 font-semibold">
-                    {roomState.players.length} de 4 jogadores conectados na Fire TV.
-                  </p>
-                </div>
+            <div className="flex items-center gap-3 bg-slate-900/90 p-3 rounded-2xl border border-white/15">
+              <AvatarIcon avatarId={myPlayer.avatarId} className="w-12 h-12 shrink-0" />
+              <div>
+                <h2 className="font-display text-lg font-black text-white">
+                  Controle #{myPlayer.slotIndex + 1} Pronto!
+                </h2>
+                <p className="text-xs text-sky-200 font-semibold">
+                  {roomState.players.length} de 4 jogadores conectados na Fire TV.
+                </p>
               </div>
-
-              {!isEmbeddedPiP && onSwitchToTvMode && (
-                <button
-                  type="button"
-                  onClick={onSwitchToTvMode}
-                  className="cube-3d px-3 py-2 rounded-xl bg-[#007AFF] hover:bg-[#0284C7] border border-white text-xs font-black text-white flex items-center gap-1.5 shrink-0"
-                >
-                  <Tv className="w-4 h-4" />
-                  <span>Ver Tela TV</span>
-                </button>
-              )}
             </div>
 
             {myPlayer.isHost ? (
