@@ -1,9 +1,14 @@
-type SoundSettingsListener = (state: { sfxMuted: boolean; bgmMuted: boolean }) => void;
+type SoundSettingsListener = (state: {
+  sfxMuted: boolean;
+  bgmMuted: boolean;
+  ttsMuted: boolean;
+}) => void;
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private sfxMuted: boolean = false;
   private bgmMuted: boolean = false;
+  private ttsMuted: boolean = false;
   private isMobileController: boolean = false;
   private bgmInterval: ReturnType<typeof setInterval> | null = null;
   private bgmStep: number = 0;
@@ -15,30 +20,41 @@ class SoundEngine {
       const legacyMute = window.localStorage.getItem('mathshow_muted');
       const savedSfxMute = window.localStorage.getItem('mathshow_sfx_muted');
       const savedBgmMute = window.localStorage.getItem('mathshow_bgm_muted');
+      const savedTtsMute = window.localStorage.getItem('mathshow_tts_muted');
 
       this.sfxMuted =
         savedSfxMute !== null ? savedSfxMute === 'true' : legacyMute === 'true';
       this.bgmMuted =
         savedBgmMute !== null ? savedBgmMute === 'true' : false;
+      this.ttsMuted =
+        savedTtsMute !== null ? savedTtsMute === 'true' : false;
     }
   }
 
   public subscribe(listener: SoundSettingsListener): () => void {
     this.listeners.add(listener);
-    listener({ sfxMuted: this.sfxMuted, bgmMuted: this.bgmMuted });
+    listener({
+      sfxMuted: this.sfxMuted,
+      bgmMuted: this.bgmMuted,
+      ttsMuted: this.ttsMuted,
+    });
     return () => {
       this.listeners.delete(listener);
     };
   }
 
   private notifyListeners() {
-    const snapshot = { sfxMuted: this.sfxMuted, bgmMuted: this.bgmMuted };
+    const snapshot = {
+      sfxMuted: this.sfxMuted,
+      bgmMuted: this.bgmMuted,
+      ttsMuted: this.ttsMuted,
+    };
     this.listeners.forEach((fn) => fn(snapshot));
   }
 
   /**
    * Define se o dispositivo atual é o controle do celular.
-   * No celular não reproduzimos áudios, apenas uma leve vibração no início de cada jogada.
+   * No celular não reproduzimos áudios automáticos, apenas uma leve vibração no início de cada jogada.
    */
   public setControllerMode(isController: boolean) {
     this.isMobileController = isController;
@@ -76,7 +92,7 @@ class SoundEngine {
   }
 
   public isMuted(): boolean {
-    return this.sfxMuted && this.bgmMuted;
+    return this.sfxMuted && this.bgmMuted && this.ttsMuted;
   }
 
   public isSfxMuted(): boolean {
@@ -85,6 +101,10 @@ class SoundEngine {
 
   public isBgmMuted(): boolean {
     return this.bgmMuted;
+  }
+
+  public isTtsMuted(): boolean {
+    return this.ttsMuted;
   }
 
   public toggleSfxMute(): boolean {
@@ -116,13 +136,90 @@ class SoundEngine {
     return this.bgmMuted;
   }
 
+  public toggleTtsMute(): boolean {
+    this.ttsMuted = !this.ttsMuted;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('mathshow_tts_muted', String(this.ttsMuted));
+    }
+    if (this.ttsMuted) {
+      this.stopSpeech();
+    } else {
+      this.speakQuestion('Leitura em voz alta ativada!', true);
+    }
+    this.notifyListeners();
+    return this.ttsMuted;
+  }
+
+  public stopSpeech() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      // Ignore speechSynthesis errors on unsupported browsers
+    }
+  }
+
+  /**
+   * Lê o enunciado da pergunta em voz alta em Português (pt-BR) via Web Speech API
+   */
+  public speakQuestion(text: string, forceEvenOnController: boolean = false) {
+    if (!text || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (this.ttsMuted && !forceEvenOnController) return;
+    if (this.isMobileController && !forceEvenOnController) return;
+
+    try {
+      const synth = window.speechSynthesis;
+      synth.cancel();
+
+      // Normalize mathematical symbols into clear spoken Portuguese
+      const normalizedText = text
+        .replace(/×/g, ' vezes ')
+        .replace(/÷/g, ' dividido por ')
+        .replace(/−/g, ' menos ')
+        .replace(/\+/g, ' mais ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const utterance = new SpeechSynthesisUtterance(normalizedText);
+      utterance.lang = 'pt-BR';
+      utterance.rate = 0.98;
+      utterance.pitch = 1.04;
+      utterance.volume = 1.0;
+
+      const voices = synth.getVoices?.() || [];
+      const ptBrVoice =
+        voices.find(
+          (v) =>
+            (v.lang.toLowerCase().includes('pt-br') || v.lang.toLowerCase().includes('pt_br')) &&
+            (v.name.toLowerCase().includes('google') ||
+              v.name.toLowerCase().includes('luciana') ||
+              v.name.toLowerCase().includes('francisca') ||
+              v.name.toLowerCase().includes('natural'))
+        ) ||
+        voices.find(
+          (v) => v.lang.toLowerCase().includes('pt-br') || v.lang.toLowerCase().includes('pt_br')
+        ) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith('pt'));
+
+      if (ptBrVoice) {
+        utterance.voice = ptBrVoice;
+      }
+
+      synth.speak(utterance);
+    } catch {
+      // Ignore TTS runtime errors on older WebViews
+    }
+  }
+
   public toggleMute(): boolean {
     const nextMuteAll = !(this.sfxMuted && this.bgmMuted);
     this.sfxMuted = nextMuteAll;
     this.bgmMuted = nextMuteAll;
+    this.ttsMuted = nextMuteAll;
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('mathshow_sfx_muted', String(this.sfxMuted));
       window.localStorage.setItem('mathshow_bgm_muted', String(this.bgmMuted));
+      window.localStorage.setItem('mathshow_tts_muted', String(this.ttsMuted));
       window.localStorage.setItem('mathshow_muted', String(nextMuteAll));
     }
     if (!this.sfxMuted) {
@@ -132,6 +229,9 @@ class SoundEngine {
       this.stopBackgroundMusicLoopOnly();
     } else {
       this.startBackgroundMusic();
+    }
+    if (this.ttsMuted) {
+      this.stopSpeech();
     }
     this.notifyListeners();
     return nextMuteAll;

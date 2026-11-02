@@ -4,10 +4,13 @@ import { motion } from 'motion/react';
 import {
   ANSWER_OPTIONS_META,
   BotAccuracyMode,
+  buildMultiplicationTablePack,
   createEmptyOperationStats,
   CustomEquationItem,
   DifficultyLevel,
   evaluatePlayerMedals,
+  formatAnswerRevealSpeech,
+  formatQuestionSpeechFormula,
   GameMode,
   LEARNING_MODULES,
   LearningModuleId,
@@ -15,6 +18,7 @@ import {
   PLAYER_AVATARS,
   PowerUpType,
   RoomState,
+  shuffleCustomEquations,
 } from '../types/game.ts';
 import { StudioStageCanvas } from './StudioStageCanvas.tsx';
 import {
@@ -57,11 +61,13 @@ import {
   QrCode,
   RotateCcw,
   Settings,
+  Shuffle,
   Smartphone,
   Sparkles,
   Trash2,
   Trophy,
   Users,
+  Volume2,
   X,
 } from 'lucide-react';
 
@@ -434,18 +440,25 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
     if (roomState.status === 'ROUND_REVEAL' && roomState.currentQuestion) {
       const q = roomState.currentQuestion;
       const start = q.revealStartedAt || Date.now();
-      const total = q.revealDurationMs || 5800;
+      const total = q.revealDurationMs || 4000;
+      let autoAdvanced = false;
 
       const interval = setInterval(() => {
         const elapsed = Date.now() - start;
         const leftMs = Math.max(0, total - elapsed);
         setRemainingSec(Math.ceil(leftMs / 1000));
         setRemainingRatio(Math.max(0, Math.min(1, leftMs / total)));
+
+        if (leftMs <= 0 && !autoAdvanced) {
+          autoAdvanced = true;
+          clearInterval(interval);
+          onNextRound();
+        }
       }, 60);
 
       return () => clearInterval(interval);
     }
-  }, [roomState.status, roomState.currentQuestion]);
+  }, [roomState.status, roomState.currentQuestion, onNextRound]);
 
   // Countdown Clock during GAME_OVER to automatically return to TITLE_MENU (fixes Image 2!)
   useEffect(() => {
@@ -1019,6 +1032,23 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                     )}
 
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        data-tv-focusable="true"
+                        onClick={() => {
+                          const formulaSpeech = formatQuestionSpeechFormula(question);
+                          const fullSpeech =
+                            roomState.status === 'ROUND_REVEAL'
+                              ? `${formulaSpeech} ${formatAnswerRevealSpeech(question.correctAnswer)}`
+                              : formulaSpeech;
+                          soundEngine.speakQuestion(fullSpeech, true);
+                        }}
+                        className="tv-focusable px-2.5 py-1 rounded-xl bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/50 text-sky-200 font-display font-black text-xs flex items-center gap-1"
+                        title="Ouvir pergunta narrada em português"
+                      >
+                        <Volume2 className="w-3.5 h-3.5 text-[#FFD600]" />
+                        <span>Ouvir</span>
+                      </button>
                       <Clock className="w-5 h-5 text-[#FFD600]" />
                       <span className="text-xs font-bold text-sky-200">
                         {roomState.status === 'ROUND_REVEAL' ? 'Próxima em:' : 'Tempo:'}
@@ -1861,10 +1891,35 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                           </button>
                         ))}
                       </div>
+                      {/* Quick 1-Click Multiplication Table Generator (1 to 10) */}
+                      <div className="pt-2 border-t border-white/15 space-y-1.5">
+                        <div className="text-[11px] font-black uppercase text-sky-300 flex items-center justify-between">
+                          <span>Gerador Rápido de Tabuada Completa (1 a 10)</span>
+                          <span className="text-[10px] text-[#FFD600]">10 contas (×1 a ×10)</span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              data-tv-focusable="true"
+                              onClick={() => {
+                                soundEngine.playTick();
+                                const pack = buildMultiplicationTablePack(num);
+                                onAdminSetCustomQuestions(pack, true);
+                                setTeacherError(null);
+                              }}
+                              className="tv-focusable cube-3d py-1.5 rounded-xl bg-purple-600/80 hover:bg-purple-500 border-2 border-white/80 text-white font-display font-black text-xs text-center"
+                            >
+                              ×{num}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Manual Custom Equation Input */}
-                    <div className="pt-2.5 border-t border-white/15 space-y-2">
+                    <div className="pt-2 border-t border-white/15 space-y-1.5">
                       <div className="text-xs font-black uppercase text-[#FFD600]">
                         2. Cadastrar Conta Específica Manualmente
                       </div>
@@ -2072,7 +2127,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                       )}
                     </div>
 
-                    <div className="pt-2 border-t border-white/15 flex items-center justify-between gap-2 shrink-0">
+                    <div className="pt-2 border-t border-white/15 flex flex-wrap items-center justify-between gap-2 shrink-0">
                       <span className="text-[11px] font-bold text-sky-200">
                         {roomState.settings.useCustomQuestions &&
                         (roomState.settings.customQuestions?.length || 0) > 0
@@ -2081,23 +2136,45 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                       </span>
 
                       {(roomState.settings.customQuestions?.length || 0) > 0 && (
-                        <button
-                          type="button"
-                          data-tv-focusable="true"
-                          onClick={() => {
-                            onAdminSetCustomQuestions(
-                              roomState.settings.customQuestions || [],
-                              true
-                            );
-                            setShowAdminPanel(false);
-                            soundEngine.playNewQuestion();
-                            onStartGame();
-                          }}
-                          className="tv-focusable cube-3d min-h-[40px] px-5 py-1.5 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white font-display font-black text-xs flex items-center gap-1.5 whitespace-nowrap"
-                        >
-                          <Play className="w-4 h-4 fill-current" />
-                          <span>Iniciar Partida Personalizada Agora!</span>
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            data-tv-focusable="true"
+                            onClick={() => {
+                              soundEngine.playTick();
+                              const current = roomState.settings.customQuestions || [];
+                              if (current.length > 1) {
+                                const shuffled = shuffleCustomEquations(current);
+                                onAdminSetCustomQuestions(
+                                  shuffled,
+                                  roomState.settings.useCustomQuestions ?? true
+                                );
+                              }
+                            }}
+                            className="tv-focusable cube-3d min-h-[40px] px-4 py-1.5 rounded-full bg-[#007AFF] hover:bg-[#0284C7] border-2 border-white text-white font-display font-black text-xs flex items-center gap-1.5 whitespace-nowrap"
+                          >
+                            <Shuffle className="w-4 h-4" />
+                            <span>Embaralhar as contas</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            data-tv-focusable="true"
+                            onClick={() => {
+                              onAdminSetCustomQuestions(
+                                roomState.settings.customQuestions || [],
+                                true
+                              );
+                              setShowAdminPanel(false);
+                              soundEngine.playNewQuestion();
+                              onStartGame();
+                            }}
+                            className="tv-focusable cube-3d min-h-[40px] px-5 py-1.5 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white font-display font-black text-xs flex items-center gap-1.5 whitespace-nowrap"
+                          >
+                            <Play className="w-4 h-4 fill-current" />
+                            <span>Iniciar Partida Personalizada Agora!</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2421,6 +2498,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                 onActivateVisualHint={onSimActivateVisualHint}
                 onContinueDecision={onSimContinueDecision}
                 onConfigureGame={onConfigureGame}
+                onSetCustomQuestions={onAdminSetCustomQuestions}
                 onStartGame={onStartGame}
                 onRestartGame={onRestartGame}
                 onNextRound={onNextRound}

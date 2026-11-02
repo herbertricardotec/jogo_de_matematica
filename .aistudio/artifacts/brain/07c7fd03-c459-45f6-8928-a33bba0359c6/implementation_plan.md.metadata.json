@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de implementação detalhado para o MathShow TV — um game show interativo de matemática básica (adição e subtração) projetado para Amazon Fire TV Stick com controle remoto em tempo real via celular para 1 a 4 jogadores via QR Code e código de 4 dígitos.",
-  "updatedAt":  "2026-11-01T17:08:04.879764296Z",
-  "requestFeedback":  true,
-  "userFacing":  true
+  "summary": "Plano de implementação das 4 melhorias pedagógicas e de usabilidade: Controle do Modo Professor pelo celular do Host (Jogador 1), Narração automática em voz alta (TTS em Português) com controle Mute independente, Gerador rápido de tabuada específica (1 a 10) em 1 clique com embaralhamento, e Distratores pedagógicos inteligentes com avanço automático de rodada.",
+  "updatedAt": "2026-11-02T21:18:07.334739808Z",
+  "requestFeedback": true,
+  "userFacing": true
 }

@@ -3,7 +3,7 @@
 > Um game show educativo e interativo de matemática em blocos 3D projetado para rodar na **Amazon Fire TV Stick** (Navegador Amazon Silk), **Smart TVs 1080p e 4K**, utilizando de **1 a 4 smartphones como controles remotos em tempo real** via QR Code e PIN de 4 dígitos — com **Viewport Scaling Automático**, **Modo 1 Jogador vs. Máquina**, **Seletor de Avatares 3D Exclusivos (Animais, Blocos Sorridentes e Crianças/Teens)**, **Dicas Visuais 3D Animadas**, **Painel Administrativo (Modo Professor & Relatório Pedagógico)**, **Medalhas 3D** e **PWA Instalável**.
 
 ![Status](https://img.shields.io/badge/Status-Pronto%20para%20Produ%C3%A7%C3%A3o-success)
-![Versão](https://img.shields.io/badge/Vers%C3%A3o-3.5.0-blue)
+![Versão](https://img.shields.io/badge/Vers%C3%A3o-3.6.0-blue)
 ![Empresa](https://img.shields.io/badge/Empresa-MagnetSoftware-orange)
 ![PWA](https://img.shields.io/badge/PWA-Instal%C3%A1vel%20%26%20Tela%20Cheia-purple)
 ![Deploy](https://img.shields.io/badge/Deploy-Vercel%20%7C%20Cloud%20Run%20%7C%20Node.js-black)
@@ -14,21 +14,23 @@
 ## 📋 ÍNDICE
 
 1. [Visão Geral](#-visão-geral)
-2. [Novidades da Versão 3.5.0](#-novidades-da-versão-350)
+2. [Novidades da Versão 3.6.0](#-novidades-da-versão-360)
 3. [Viewport Scaling para Amazon Fire TV Stick (Silk), 1080p e 4K](#-viewport-scaling-para-amazon-fire-tv-stick-silk-1080p-e-4k)
-4. [Tela Administrativa Compacta (4 Jogadores, Modo Professor e Relatório Pedagógico)](#-tela-administrativa-compacta-4-jogadores-modo-professor-e-relatório-pedagógico)
-5. [Seletor de Avatares 3D com Identidade Única na TV](#-seletor-de-avatares-3d-com-identidade-única-na-tv)
-6. [Modo 1 Jogador: Disputar contra a Máquina (Robô 3D)](#-modo-1-jogador-disputar-contra-a-máquina-robô-3d)
-7. [Sistema de Dicas Visuais 3D (Contagem Animada de Blocos)](#-sistema-de-dicas-visuais-3d-contagem-animada-de-blocos)
-8. [Sistema de Conquistas e Medalhas 3D Animadas](#-sistema-de-conquistas-e-medalhas-3d-animadas)
-9. [Arquitetura Anti-Travamento e Verificação de Buffer (Vercel & WebSocket)](#-arquitetura-anti-travamento-e-verificação-de-buffer-vercel--websocket)
-10. [Suporte a PWA (Progressive Web App e Tela Cheia)](#-suporte-a-pwa-progressive-web-app-e-tela-cheia)
-11. [Como Publicar na Vercel e Instalar na Fire TV Stick](#-como-publicar-na-vercel-e-instalar-na-fire-tv-stick)
-12. [Como Executar Localmente](#-como-executar-localmente)
-13. [Tecnologias Utilizadas e Estrutura de Arquivos](#-tecnologias-utilizadas-e-estrutura-de-arquivos)
-14. [Sistema de Pontuação e Módulos Educativos](#-sistema-de-pontuação-e-módulos-educativos)
-15. [5 Dicas de Evolução Futura do Jogo](#-5-dicas-de-evolução-futura-do-jogo)
-16. [Segurança Infantil (Kid-Safe) e Privacidade](#-segurança-infantil-kid-safe-e-privacidade)
+4. [Tela Administrativa Compacta & Modo Professor no Celular do Host](#-tela-administrativa-compacta--modo-professor-no-celular-do-host)
+5. [Narração em Voz Alta (TTS em Português) e Controles Independentes de Áudio](#-narração-em-voz-alta-tts-em-português-e-controles-independentes-de-áudio)
+6. [Seletor de Avatares 3D com Identidade Única na TV](#-seletor-de-avatares-3d-com-identidade-única-na-tv)
+7. [Modo 1 Jogador: Disputar contra a Máquina (Robô 3D)](#-modo-1-jogador-disputar-contra-a-máquina-robô-3d)
+8. [Sistema de Dicas Visuais 3D (Contagem Animada de Blocos)](#-sistema-de-dicas-visuais-3d-contagem-animada-de-blocos)
+9. [Sistema de Conquistas e Medalhas 3D Animadas](#-sistema-de-conquistas-e-medalhas-3d-animadas)
+10. [Arquitetura Anti-Travamento e Verificação de Buffer (Vercel & WebSocket)](#-arquitetura-anti-travamento-e-verificação-de-buffer-vercel--websocket)
+11. [Suporte a PWA (Progressive Web App e Tela Cheia)](#-suporte-a-pwa-progressive-web-app-e-tela-cheia)
+12. [Como Publicar na Vercel e Instalar na Fire TV Stick](#-como-publicar-na-vercel-e-instalar-na-fire-tv-stick)
+13. [Como Executar Localmente](#-como-executar-localmente)
+14. [Tecnologias Utilizadas e Estrutura de Arquivos](#-tecnologias-utilizadas-e-estrutura-de-arquivos)
+15. [Sistema de Pontuação e Módulos Educativos](#-sistema-de-pontuação-e-módulos-educativos)
+16. [Modo Demonstração & Rodízio Automático na TV (Attract Mode)](#-modo-demonstração--rodízio-automático-na-tv-attract-mode)
+17. [5 Dicas de Evolução Futura do Jogo](#-5-dicas-de-evolução-futura-do-jogo)
+18. [Segurança Infantil (Kid-Safe) e Privacidade](#-segurança-infantil-kid-safe-e-privacidade)
 
 ---
 
@@ -38,15 +40,17 @@ O **Jogo de Matemática (MathShow TV)** — desenvolvido sob o padrão visual **
 
 ---
 
-## 🚀 NOVIDADES DA VERSÃO 3.5.0
+## 🚀 NOVIDADES DA VERSÃO 3.6.0
 
-- ✅ **Viewport Scaling Automático para Navegador Amazon Silk (Fire TV Stick), 1080p e 4K**: A interface inteira (incluindo o Painel Administrativo e todos os modais) ajusta-se automaticamente ao viewport real da TV (`--tv-scale`), impedindo cortes, quebras de coluna ou rolagens indesejadas quando o controle remoto foca elementos (`preventScroll: true`).
-- ✅ **Painel Administrativo Compacto em Tela Única na TV**: Redimensionado para exibir os **4 cartões de jogadores lado a lado (`grid-cols-4`)**, cabeçalho em linha única e as 3 abas (*Controle dos 4 Jogadores*, *Modo Professor* e *Relatório Pedagógico*) alinhadas perfeitamente no navegador Silk da Fire TV Stick.
-- ✅ **Seletor de Avatares 3D no Login do Celular (Animais, Blocos Sorridentes e Crianças/Teens)**: Garantia automática de **identidade visual única** na TV — avatares já escolhidos por outro jogador na sala ficam sinalizados como *"Em uso na TV"* e o servidor impede duplicidade.
-- ✅ **Modo 1 Jogador — Disputar contra a Máquina (Robô 3D)**: Exclusivo quando há apenas 1 jogador humano na sala. O sistema sorteia **aleatoriamente nos bastidores** o objetivo de precisão da Máquina (`100%`, `60%`, `40%` ou `20%` de acertos) para a partida, sem exibir a meta na tela do jogador.
-- ✅ **Sistema de Dicas Visuais 3D (2 Erros na Mesma Questão)**: Se o jogador errar duas vezes na mesma pergunta, a questão permanece ativa com as opções restantes e libera o botão **"Dica Visual 3D"**, exibindo animações 3D dos blocos sendo contados passo a passo na TV e no celular.
-- ✅ **Modo Professor (Criador de Partidas Personalizadas) + Relatório Pedagógico Pós-Jogo**: Cadastro de contas específicas ou pacotes prontos (ex.: *Tabuada do 7 e 8*, *Divisão Exata*) e relatório detalhado de percentual de acerto por operação (`+`, `−`, `×`, `÷`).
-- ✅ **Verificação de Buffer e Auto-Recuperação de Sala na Vercel**: Proteção contra congestionamento de rede, *in-flight lock* com timeout de 4,5s e recriação transparente da sala na função serverless `/api/room`, eliminando erros `404` ou travamentos.
+- ✅ **Controle do Modo Professor pelo Celular do Host (Jogador 1)**: O anfitrião não precisa mais usar o controle remoto da TV para cadastrar contas! Diretamente da tela do seu celular, o Jogador 1 pode abrir a gaveta **"Modo Professor no Celular"**, gerar tabuadas de 1 a 10 com um toque, digitar contas manualmente, **embaralhar as contas** e iniciar a partida personalizada na TV.
+- ✅ **Feedback Sonoro Narrado nas Perguntas (TTS em Português `pt-BR`)**:
+  - **Ao iniciar a pergunta**: Lê automaticamente a fórmula matemática no formato **"Quanto é [N] [equação] [N]?"** (ex.: *"Quanto é 7 vezes 8?"*, *"Quanto é 6 mais 5?"*, *"Quanto é 9 menos 4?"*, *"Quanto é 12 dividido por 3?"*).
+  - **Ao revelar a resposta**: Narra automaticamente **"Resposta certa [N]"** (ex.: *"Resposta certa 56"*).
+  - Conta com controle global independente **Voz On / Voz Off** e botão **"🔊 Ouvir"** na TV e no celular.
+- ✅ **Gerador Rápido de Tabuada Específica (1 a 10) em 1 Clique**: Adicionados 10 botões rápidos (`×1` a `×10`) tanto no Painel Admin da TV quanto no celular do Host para carregar instantaneamente os 10 desafios da tabuada escolhida.
+- ✅ **Alternativas Inteligentes (Distratores Pedagógicos) e Avanço Rápido (4s)**: As 3 alternativas incorretas agora utilizam distratores pedagógicos reais (múltiplos vizinhos da mesma tabuada, erro de dezena $\pm 10$, inversão de dígitos e vizinhos próximos), evitando chutes óbvios. Além disso, o intervalo de revelação entre rodadas foi otimizado para **4 segundos** com avanço automático fluido.
+- ✅ **Viewport Scaling Automático para Navegador Amazon Silk (Fire TV Stick), 1080p e 4K**: A interface inteira ajusta-se automaticamente ao viewport real da TV (`--tv-scale`), impedindo cortes ou rolagens indesejadas (`preventScroll: true`).
+- ✅ **Seletor de Avatares 3D Exclusivos + Modo 1 Jogador vs. Máquina + Dicas Visuais 3D**: Identidade visual única por jogador na TV, Robô 3D com precisão oculta sorteada e contagem animada de blocos após 2 erros na mesma questão.
 
 ---
 
@@ -64,9 +68,9 @@ Para garantir enquadramento 100% perfeito em qualquer tela:
 
 ---
 
-## 🛡️ TELA ADMINISTRATIVA COMPACTA (4 JOGADORES, MODO PROFESSOR E RELATÓRIO PEDAGÓGICO)
+## 🛡️ TELA ADMINISTRATIVA COMPACTA & MODO PROFESSOR NO CELULAR DO HOST
 
-Acessível pelo botão **"Painel Admin"** no topo da TV, a Tela Administrativa roda dentro do palco escalonado da TV com layout horizontal de alta densidade:
+Acessível pelo botão **"Painel Admin"** no topo da TV (ou diretamente pelo **celular do Jogador 1 — Host**):
 
 ### 1. Aba: Controle dos 4 Jogadores (`grid-cols-4`)
 Exibe os 4 slots sempre lado a lado na tela da TV:
@@ -74,12 +78,30 @@ Exibe os 4 slots sempre lado a lado na tela da TV:
 - **Jogador Conectado (Online)**: Exibe o **Avatar 3D**, **Nome**, **Pontuação (`pts`)**, **Estrelas (`⭐`)**, **Acertos** e o botão vermelho **"Fazer Logoff (Desconectar)"**.
 - Conta também com os botões **"Instalar App (PWA)"**, **"Testar Celular na Tela"**, **"Novo PIN"** e **"Logoff Todos"** na barra superior do painel.
 
-### 2. Aba: Modo Professor · Partidas Personalizadas
+### 2. Aba: Modo Professor · Partidas Personalizadas (Na TV e no Celular do Host)
+- **Gerador Rápido de Tabuada (1 a 10) em 1 Clique**: Botões dedicados `×1` a `×10` que geram imediatamente as 10 contas da tabuada escolhida.
 - **Pacotes Prontos (1 Clique)**: *Tabuada do 7 e 8*, *Tabuada do 2, 3 e 4*, *Tabuada do 5, 6 e 9* e *Divisão Exata (÷)*.
-- **Cadastro Manual de Contas**: Permite digitar qualquer operação (`+`, `-`, `×`, `÷`) com validação automática de resultados inteiros e iniciar a partida personalizada imediatamente.
+- **Cadastro Manual de Contas**: Permite digitar qualquer operação (`+`, `-`, `×`, `÷`) com validação automática de resultados inteiros no teclado ágil do celular ou na TV.
+- **Botão "Embaralhar as contas"**: Mistura instantaneamente a sequência das contas cadastradas com algoritmo Fisher-Yates para que os alunos não decorem a ordem das perguntas.
 
 ### 3. Aba: Relatório Pedagógico Pós-Jogo (`+`, `−`, `×`, `÷`)
 - Mostra a **Precisão Geral (%)**, **Tempo Médio de Resposta (s)** e barras de progresso individuais por operação matemática (**Adição `+`**, **Subtração `−`**, **Multiplicação `×`** e **Divisão `÷`**) para cada jogador, classificando o status em *🌟 Dominado*, *📈 Em Evolução* ou *🎯 Reforçar*.
+
+---
+
+## 🔊 NARRAÇÃO EM VOZ ALTA (TTS EM PORTUGUÊS) E CONTROLES INDEPENDENTES DE ÁUDIO
+
+- **Leitura da Fórmula Matemática (`QUESTION_ACTIVE`)**: Assim que uma nova atividade começa na TV, o sintetizador de voz (`window.speechSynthesis` em `pt-BR`) lê diretamente a fórmula matemática no padrão:
+  > **"Quanto é [N] [equação] [N]?"**  
+  > *(Exemplos: "Quanto é 7 vezes 8?", "Quanto é 6 mais 5?", "Quanto é 9 menos 4?", "Quanto é 12 dividido por 3?")*
+- **Leitura da Resposta Certa (`ROUND_REVEAL`)**: Ao encerrar o tempo ou quando os jogadores respondem e a resposta correta é revelada no palco, o sistema narra automaticamente:
+  > **"Resposta certa [N]"**  
+  > *(Exemplo: "Resposta certa 56")*
+- **3 Controles Independentes na Barra Superior**:
+  1. **Música On / Música Off**: Ativa ou silencia a trilha sonora ambiente em loop.
+  2. **Efeitos On / Efeitos Off**: Ativa ou silencia os efeitos sonoros de acerto, erro, relógio e fanfarra.
+  3. **Voz On / Voz Off**: Ativa ou silencia a leitura em voz alta das perguntas e respostas (salvo no `localStorage`).
+- **Botão "🔊 Ouvir" na TV e no Celular**: Repete a fórmula `"Quanto é [N] [equação] [N]?"` durante a pergunta ativa ou a frase completa `"Quanto é [N] [equação] [N]? Resposta certa [N]"` durante a revelação da rodada.
 
 ---
 

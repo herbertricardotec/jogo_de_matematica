@@ -8,6 +8,8 @@ import {
   BotAccuracyMode,
   CustomEquationItem,
   DifficultyLevel,
+  formatAnswerRevealSpeech,
+  formatQuestionSpeechFormula,
   GameMode,
   LearningModuleId,
   PowerUpType,
@@ -94,7 +96,7 @@ export default function App() {
     }
     prevAnsweredCountRef.current = answeredNow;
 
-    // New Question Start: Chime on TV + Gentle vibration ("leve tremida") on Mobile Controller
+    // New Question Start: Chime + Automatic Portuguese TTS Narration ("Quanto é N equação N?") on TV + Gentle vibration on Mobile Controller
     if (
       nextState.status === 'QUESTION_ACTIVE' &&
       nextState.currentQuestion &&
@@ -102,10 +104,13 @@ export default function App() {
     ) {
       prevQuestionIdRef.current = nextState.currentQuestion.id;
       soundEngine.playNewQuestion();
+      soundEngine.speakQuestion(
+        formatQuestionSpeechFormula(nextState.currentQuestion)
+      );
       soundEngine.vibrate('question_start');
     }
 
-    // Round Reveal & Victory Transitions with 3D Medals Fanfare & Confetti on TV
+    // Round Reveal ("Resposta certa N") & Victory Transitions with 3D Medals Fanfare & Confetti on TV
     if (nextState.status !== prevStatusRef.current) {
       if (nextState.status === 'ROUND_REVEAL') {
         const q = nextState.currentQuestion;
@@ -113,6 +118,9 @@ export default function App() {
           q && nextState.players.some((p) => p.currentAnswer === q.correctIndex)
         );
         soundEngine.playRoundReveal(anyRight);
+        if (q) {
+          soundEngine.speakQuestion(formatAnswerRevealSpeech(q.correctAnswer));
+        }
         setShakeTrigger((s) => s + 1);
         if (anyRight) {
           setBurstTrigger((c) => c + 1);
@@ -510,6 +518,7 @@ export default function App() {
         onActivateVisualHint={() => handleActivateVisualHint(mobilePlayerId)}
         onContinueDecision={(cont) => handleContinueDecision(cont, mobilePlayerId)}
         onConfigureGame={handleConfigureGame}
+        onSetCustomQuestions={handleAdminSetCustomQuestions}
         onStartGame={handleStartGame}
         onRestartGame={handleRestartGame}
         onNextRound={handleNextRound}

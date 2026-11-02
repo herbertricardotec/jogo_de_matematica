@@ -9,15 +9,21 @@ import {
   AvatarBaseCharacterId,
   AvatarCategory,
   BotAccuracyMode,
+  buildMultiplicationTablePack,
+  CustomEquationItem,
   DifficultyLevel,
   ensureUniquePlayerAvatar,
   evaluatePlayerMedals,
+  formatAnswerRevealSpeech,
+  formatQuestionSpeechFormula,
   GameMode,
   LEARNING_MODULES,
   LearningModuleId,
+  MathOperator,
   PlayerState,
   PowerUpType,
   RoomState,
+  shuffleCustomEquations,
 } from '../types/game.ts';
 import {
   AvatarIcon,
@@ -27,8 +33,10 @@ import {
   NumberCube3D,
   VisualHint3DAnimator,
 } from './AvatarIcon.tsx';
+import { soundEngine } from '../utils/sound.ts';
 import {
   Award,
+  BookOpen,
   Bot,
   CheckCircle2,
   Clock,
@@ -37,11 +45,15 @@ import {
   Lightbulb,
   LogOut,
   Play,
+  Plus,
   RotateCcw,
   Scissors,
+  Shuffle,
   Snowflake,
   Sparkles,
   Star,
+  Trash2,
+  Volume2,
 } from 'lucide-react';
 
 interface MobileControllerViewProps {
@@ -62,6 +74,10 @@ interface MobileControllerViewProps {
     vsMachine?: boolean;
     botAccuracyMode?: BotAccuracyMode;
   }) => void;
+  onSetCustomQuestions?: (
+    customQuestions: CustomEquationItem[],
+    useCustomQuestions: boolean
+  ) => void;
   onStartGame: () => void;
   onRestartGame: () => void;
   onNextRound: () => void;
@@ -80,6 +96,7 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
   onActivateVisualHint,
   onContinueDecision,
   onConfigureGame,
+  onSetCustomQuestions,
   onStartGame,
   onRestartGame,
   onNextRound,
@@ -102,6 +119,13 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
 
   const [remainingRatio, setRemainingRatio] = useState<number>(1);
   const [remainingSec, setRemainingSec] = useState<number>(18);
+
+  // Mobile Host Modo Professor State
+  const [showMobileTeacherMode, setShowMobileTeacherMode] = useState<boolean>(false);
+  const [mobileTermA, setMobileTermA] = useState<string>('7');
+  const [mobileOperator, setMobileOperator] = useState<MathOperator>('×');
+  const [mobileTermB, setMobileTermB] = useState<string>('8');
+  const [mobileTeacherError, setMobileTeacherError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialRoomCode && initialRoomCode.length === 4) {
@@ -672,6 +696,218 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                   </div>
                 )}
 
+                {/* MODO PROFESSOR NO CELULAR DO HOST (JOGADOR 1) */}
+                {onSetCustomQuestions && (
+                  <div className="rounded-2xl bg-slate-900/95 border-2 border-sky-400/50 p-3 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <BookOpen className="w-5 h-5 text-[#FFD600] shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-white truncate">
+                            Modo Professor no Celular ({roomState.settings.customQuestions?.length || 0} contas)
+                          </div>
+                          <div className="text-[10px] font-bold text-sky-300">
+                            {roomState.settings.useCustomQuestions &&
+                            (roomState.settings.customQuestions?.length || 0) > 0
+                              ? '✓ Partida personalizada ativa na TV'
+                              : 'Crie contas ou escolha uma tabuada de 1 a 10'}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowMobileTeacherMode((v) => !v)}
+                        className="cube-3d px-3 py-1.5 rounded-xl bg-[#007AFF] hover:bg-[#0284C7] text-white text-xs font-black border-2 border-white whitespace-nowrap shrink-0"
+                      >
+                        {showMobileTeacherMode ? 'Fechar' : 'Modo Professor'}
+                      </button>
+                    </div>
+
+                    {showMobileTeacherMode && (
+                      <div className="pt-2 border-t border-white/15 space-y-2.5">
+                        {/* Gerador Rápido de Tabuada Específica (1 a 10) */}
+                        <div>
+                          <div className="text-[11px] font-black text-[#FFD600] mb-1.5">
+                            ⚡ Gerar Tabuada Completa (1 Clique):
+                          </div>
+                          <div className="grid grid-cols-5 gap-1.5">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={() => {
+                                  const pack = buildMultiplicationTablePack(num);
+                                  onSetCustomQuestions(pack, true);
+                                  setMobileTeacherError(null);
+                                }}
+                                className="min-h-[36px] rounded-xl bg-[#071936] hover:bg-[#007AFF] border border-sky-400/50 text-xs font-display font-black text-white active:scale-95 transition-transform"
+                              >
+                                ×{num}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Cadastro Manual Rápido no Celular */}
+                        <div className="rounded-xl bg-[#071936] border border-white/15 p-2.5 space-y-2">
+                          <div className="text-[11px] font-black text-sky-200">
+                            ➕ Cadastrar Conta Específica:
+                          </div>
+                          <div className="grid grid-cols-3 gap-1.5 items-center">
+                            <input
+                              type="number"
+                              min={1}
+                              max={99}
+                              value={mobileTermA}
+                              onChange={(e) => setMobileTermA(e.target.value)}
+                              className="h-10 rounded-xl bg-slate-900 border border-sky-400 text-center font-mono font-black text-sm text-white"
+                              aria-label="Primeiro número"
+                            />
+                            <div className="grid grid-cols-4 gap-1">
+                              {(['+', '-', '×', '÷'] as MathOperator[]).map((op) => (
+                                <button
+                                  key={op}
+                                  type="button"
+                                  onClick={() => setMobileOperator(op)}
+                                  className={`h-10 rounded-lg font-display font-black text-sm border ${
+                                    mobileOperator === op
+                                      ? 'bg-[#FFD600] text-slate-950 border-white'
+                                      : 'bg-slate-900 text-white border-slate-700'
+                                  }`}
+                                >
+                                  {op}
+                                </button>
+                              ))}
+                            </div>
+                            <input
+                              type="number"
+                              min={1}
+                              max={99}
+                              value={mobileTermB}
+                              onChange={(e) => setMobileTermB(e.target.value)}
+                              className="h-10 rounded-xl bg-slate-900 border border-sky-400 text-center font-mono font-black text-sm text-white"
+                              aria-label="Segundo número"
+                            />
+                          </div>
+
+                          {mobileTeacherError && (
+                            <div className="text-[11px] font-bold text-rose-300">
+                              {mobileTeacherError}
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const a = parseInt(mobileTermA, 10);
+                              const b = parseInt(mobileTermB, 10);
+                              if (isNaN(a) || isNaN(b) || a < 1 || b < 1) {
+                                setMobileTeacherError('Digite números maiores que zero.');
+                                return;
+                              }
+                              if (mobileOperator === '-' && a <= b) {
+                                setMobileTeacherError('Na subtração, o 1º número deve ser maior.');
+                                return;
+                              }
+                              if (mobileOperator === '÷' && a % b !== 0) {
+                                setMobileTeacherError('Escolha números com divisão exata.');
+                                return;
+                              }
+                              const ans =
+                                mobileOperator === '+'
+                                  ? a + b
+                                  : mobileOperator === '-'
+                                  ? a - b
+                                  : mobileOperator === '×'
+                                  ? a * b
+                                  : Math.round(a / b);
+
+                              const newItem: CustomEquationItem = {
+                                id: `mob_custom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                                termA: a,
+                                operator: mobileOperator,
+                                termB: b,
+                                correctAnswer: ans,
+                              };
+                              const nextList = [
+                                ...(roomState.settings.customQuestions || []),
+                                newItem,
+                              ];
+                              onSetCustomQuestions(nextList, true);
+                              setMobileTeacherError(null);
+                            }}
+                            className="w-full min-h-[38px] rounded-xl bg-[#007AFF] hover:bg-[#0284C7] border border-white text-white font-display font-black text-xs flex items-center justify-center gap-1.5"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Adicionar Conta na Lista</span>
+                          </button>
+                        </div>
+
+                        {/* Lista Compacta e Botões Embaralhar / Limpar */}
+                        {(roomState.settings.customQuestions?.length || 0) > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const shuffled = shuffleCustomEquations(
+                                    roomState.settings.customQuestions || []
+                                  );
+                                  onSetCustomQuestions(
+                                    shuffled,
+                                    roomState.settings.useCustomQuestions ?? true
+                                  );
+                                }}
+                                className="cube-3d px-3 py-1.5 rounded-xl bg-[#007AFF] text-white text-xs font-black border border-white flex items-center gap-1"
+                              >
+                                <Shuffle className="w-3.5 h-3.5" />
+                                <span>Embaralhar as contas</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => onSetCustomQuestions([], false)}
+                                className="px-2.5 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-black flex items-center gap-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Limpar</span>
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto pr-1">
+                              {(roomState.settings.customQuestions || []).map((qItem, idx) => (
+                                <div
+                                  key={qItem.id}
+                                  className="rounded-lg bg-[#071936] border border-sky-400/30 px-2.5 py-1.5 flex items-center justify-between text-xs font-mono font-bold text-white tabular-nums"
+                                >
+                                  <span>
+                                    #{idx + 1}: {qItem.termA}
+                                    {qItem.operator}
+                                    {qItem.termB}={qItem.correctAnswer}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const filtered = (
+                                        roomState.settings.customQuestions || []
+                                      ).filter((item) => item.id !== qItem.id);
+                                      onSetCustomQuestions(filtered, filtered.length > 0);
+                                    }}
+                                    className="text-rose-400 hover:text-rose-200 ml-1"
+                                    aria-label="Remover conta"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {
@@ -703,10 +939,25 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                 <span>
                   Atividade {question.roundNumber}/{question.totalRounds}
                 </span>
-                <span className="flex items-center gap-1 font-mono font-black text-sm text-[#FFD600] tabular-nums">
-                  <Clock className="w-4 h-4" />
-                  {remainingSec}s
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      soundEngine.speakQuestion(
+                        formatQuestionSpeechFormula(question),
+                        true
+                      )
+                    }
+                    className="px-2 py-0.5 rounded-lg bg-[#007AFF] text-white text-[11px] font-black flex items-center gap-1 border border-white/40"
+                  >
+                    <Volume2 className="w-3.5 h-3.5" />
+                    <span>Ouvir</span>
+                  </button>
+                  <span className="flex items-center gap-1 font-mono font-black text-sm text-[#FFD600] tabular-nums">
+                    <Clock className="w-4 h-4" />
+                    {remainingSec}s
+                  </span>
+                </div>
               </div>
 
               {/* Animated Time Passage Bar */}
@@ -941,8 +1192,23 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                   : 'Boa tentativa! Tente de novo na próxima!'}
               </h2>
 
-              <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-white/20 space-y-1">
-                <div className="text-xs font-bold text-sky-300">Resposta da Atividade</div>
+              <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-white/20 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-sky-300">Resposta da Atividade</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      soundEngine.speakQuestion(
+                        `${formatQuestionSpeechFormula(question)} ${formatAnswerRevealSpeech(question.correctAnswer)}`,
+                        true
+                      )
+                    }
+                    className="px-2 py-0.5 rounded-lg bg-[#007AFF] text-white text-[11px] font-black flex items-center gap-1 border border-white/40"
+                  >
+                    <Volume2 className="w-3.5 h-3.5" />
+                    <span>Ouvir</span>
+                  </button>
+                </div>
                 <div className="font-display text-2xl font-black text-[#FFD600] tabular-nums">
                   {renderPhoneEquation()}
                 </div>

@@ -2,11 +2,13 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import {
   BotAccuracyMode,
   buildBotPlannedOutcomes,
+  buildSmartPedagogicalOptions,
   createEmptyOperationStats,
   CustomEquationItem,
   DifficultyLevel,
   ensureUniquePlayerAvatar,
   evaluatePlayerMedals,
+  formatQuestionSpeechFormula,
   GameMode,
   GameSettings,
   LearningModuleId,
@@ -85,6 +87,7 @@ function buildModuleQuestion(
     categoryLabel = 'Modo Professor · Partida Personalizada';
     if (op === '+') {
       promptText = `Desafio Personalizado: Qual é a soma de ${a} mais ${b}?`;
+      speechText = `Atividade ${roundNumber}. Quanto é ${a} mais ${b}?`;
       mentalMathTip = `${a} + ${b} = ${correctAnswer}`;
       visualBlocks = [
         { count: Math.min(a, 10), colorHex: '#22C55E', label: `${a}` },
@@ -92,6 +95,7 @@ function buildModuleQuestion(
       ];
     } else if (op === '-') {
       promptText = `Desafio Personalizado: Quanto é ${a} menos ${b}?`;
+      speechText = `Atividade ${roundNumber}. Quanto é ${a} menos ${b}?`;
       mentalMathTip = `${a} - ${b} = ${correctAnswer}`;
       visualBlocks = [
         { count: Math.min(a, 10), colorHex: '#F97316', label: `${a}` },
@@ -99,6 +103,7 @@ function buildModuleQuestion(
       ];
     } else if (op === '×') {
       promptText = `Modo Professor: Quanto é ${a} vezes ${b}?`;
+      speechText = `Atividade ${roundNumber}. Quanto é ${a} vezes ${b}?`;
       mentalMathTip = `${a} × ${b} = ${correctAnswer}`;
       visualBlocks = [
         { count: Math.min(a, 8), colorHex: '#A855F7', label: `${a} grupos` },
@@ -106,6 +111,7 @@ function buildModuleQuestion(
       ];
     } else {
       promptText = `Modo Professor: Quanto é ${a} dividido por ${b}?`;
+      speechText = `Atividade ${roundNumber}. Quanto é ${a} dividido por ${b}?`;
       mentalMathTip = `${a} ÷ ${b} = ${correctAnswer}`;
       visualBlocks = [
         { count: Math.min(a, 10), colorHex: '#A855F7', label: `Total: ${a}` },
@@ -178,14 +184,17 @@ function buildModuleQuestion(
     ];
   }
 
-  const distractors = new Set<number>();
-  for (const offset of [1, -1, 2, -2, 3, -3, 4]) {
-    const val = correctAnswer + offset;
-    if (val >= 1 && val !== correctAnswer) distractors.add(val);
-    if (distractors.size >= 3) break;
-  }
-  const options = [correctAnswer, ...Array.from(distractors).slice(0, 3)].sort(
-    () => Math.random() - 0.5
+  speechText = formatQuestionSpeechFormula({
+    equationFormat,
+    terms,
+    operators,
+    targetValue,
+  });
+
+  const { options, correctIndex } = buildSmartPedagogicalOptions(
+    correctAnswer,
+    terms,
+    operators[0] || '+'
   );
 
   return {
@@ -200,7 +209,7 @@ function buildModuleQuestion(
     terms,
     operators,
     correctAnswer,
-    correctIndex: options.indexOf(correctAnswer),
+    correctIndex,
     options,
     mentalMathTip,
     categoryLabel: isLightningRound ? `⭐ Rodada Estrela em Dobro (2x)` : categoryLabel,
@@ -257,7 +266,7 @@ function advanceTimersOnRead(room: RoomState) {
     }
   } else if (room.status === 'ROUND_REVEAL' && room.currentQuestion) {
     const revealStart = room.currentQuestion.revealStartedAt || now;
-    const revealDur = room.currentQuestion.revealDurationMs || 5800;
+    const revealDur = room.currentQuestion.revealDurationMs || 4000;
     if (now - revealStart >= revealDur) {
       if (room.currentQuestion.roundNumber >= room.settings.totalRounds) {
         room.status = 'GAME_OVER';
@@ -312,7 +321,7 @@ function revealCurrentRound(room: RoomState) {
   if (!q) return;
   room.status = 'ROUND_REVEAL';
   q.revealStartedAt = Date.now();
-  q.revealDurationMs = 5800;
+  q.revealDurationMs = 4000;
 
   const currentOp = q.operators?.[0] || '+';
 

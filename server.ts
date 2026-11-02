@@ -7,11 +7,13 @@ import { createServer as createViteServer } from 'vite';
 import {
   BotAccuracyMode,
   buildBotPlannedOutcomes,
+  buildSmartPedagogicalOptions,
   createEmptyOperationStats,
   CustomEquationItem,
   DifficultyLevel,
   ensureUniquePlayerAvatar,
   evaluatePlayerMedals,
+  formatQuestionSpeechFormula,
   GameMode,
   GameSettings,
   LearningModuleId,
@@ -99,6 +101,7 @@ function buildModuleQuestion(
     categoryLabel = 'Modo Professor · Partida Personalizada';
     if (op === '+') {
       promptText = `Desafio Personalizado: Qual é a soma de ${a} mais ${b}?`;
+      speechText = `Atividade ${roundNumber}. Quanto é ${a} mais ${b}?`;
       mentalMathTip = `${a} + ${b} = ${correctAnswer}`;
       visualBlocks = [
         { count: Math.min(a, 10), colorHex: '#22C55E', label: `${a}` },
@@ -106,6 +109,7 @@ function buildModuleQuestion(
       ];
     } else if (op === '-') {
       promptText = `Desafio Personalizado: Quanto é ${a} menos ${b}?`;
+      speechText = `Atividade ${roundNumber}. Quanto é ${a} menos ${b}?`;
       mentalMathTip = `${a} - ${b} = ${correctAnswer}`;
       visualBlocks = [
         { count: Math.min(a, 10), colorHex: '#F97316', label: `${a}` },
@@ -113,6 +117,7 @@ function buildModuleQuestion(
       ];
     } else if (op === '×') {
       promptText = `Modo Professor: Quanto é ${a} vezes ${b}?`;
+      speechText = `Atividade ${roundNumber}. Quanto é ${a} vezes ${b}?`;
       mentalMathTip = `${a} × ${b} = ${correctAnswer}`;
       visualBlocks = [
         { count: Math.min(a, 8), colorHex: '#A855F7', label: `${a} grupos` },
@@ -120,6 +125,7 @@ function buildModuleQuestion(
       ];
     } else {
       promptText = `Modo Professor: Quanto é ${a} dividido por ${b}?`;
+      speechText = `Atividade ${roundNumber}. Quanto é ${a} dividido por ${b}?`;
       mentalMathTip = `${a} ÷ ${b} = ${correctAnswer}`;
       visualBlocks = [
         { count: Math.min(a, 10), colorHex: '#A855F7', label: `Total: ${a}` },
@@ -220,24 +226,18 @@ function buildModuleQuestion(
     }
   }
 
-  const distractors = new Set<number>();
-  const candidateOffsets = [1, -1, 2, -2, 3, -3, 5, -4, 4, 6];
-  for (const offset of candidateOffsets.sort(() => Math.random() - 0.5)) {
-    const val = correctAnswer + offset;
-    if (val >= 1 && val !== correctAnswer) {
-      distractors.add(val);
-    }
-    if (distractors.size >= 3) break;
-  }
-  while (distractors.size < 3) {
-    const fallback = Math.max(1, correctAnswer + randomInt(1, 7));
-    if (fallback !== correctAnswer) distractors.add(fallback);
-  }
+  speechText = formatQuestionSpeechFormula({
+    equationFormat,
+    terms,
+    operators,
+    targetValue,
+  });
 
-  const options = [correctAnswer, ...Array.from(distractors).slice(0, 3)].sort(
-    () => Math.random() - 0.5
+  const { options, correctIndex } = buildSmartPedagogicalOptions(
+    correctAnswer,
+    terms,
+    operators[0] || '+'
   );
-  const correctIndex = options.indexOf(correctAnswer);
 
   return {
     id: `q_${Date.now()}_${roundNumber}`,
@@ -445,7 +445,7 @@ function revealCurrentRound(room: InternalRoom) {
   const question = room.state.currentQuestion;
   if (!question) return;
 
-  const revealDurationMs = 5800;
+  const revealDurationMs = 4000;
   room.state.status = 'ROUND_REVEAL';
   question.revealStartedAt = Date.now();
   question.revealDurationMs = revealDurationMs;

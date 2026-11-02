@@ -772,3 +772,186 @@ export const ANSWER_OPTIONS_META: OptionMeta[] = [
     hexColor: '#22C55E',
   },
 ];
+
+/**
+ * Generates a complete 1-to-10 Multiplication Table pack for a specific number (1..10)
+ */
+export function buildMultiplicationTablePack(tableNumber: number): CustomEquationItem[] {
+  const n = Math.max(1, Math.min(12, Math.round(tableNumber)));
+  const now = Date.now();
+  const list: CustomEquationItem[] = [];
+  for (let factor = 1; factor <= 10; factor++) {
+    list.push({
+      id: `tab_${n}x${factor}_${now}_${factor}`,
+      termA: n,
+      operator: '×',
+      termB: factor,
+      correctAnswer: n * factor,
+    });
+  }
+  return list;
+}
+
+/**
+ * Fisher-Yates shuffle for custom equations that guarantees a new order when length > 1
+ */
+export function shuffleCustomEquations(items: CustomEquationItem[]): CustomEquationItem[] {
+  const current = [...items];
+  if (current.length <= 1) return current;
+  const shuffled = [...current];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = shuffled[i];
+    shuffled[i] = shuffled[j];
+    shuffled[j] = temp;
+  }
+  const isSameOrder = shuffled.every((item, idx) => item.id === current[idx].id);
+  if (isSameOrder) {
+    const first = shuffled[0];
+    shuffled[0] = shuffled[shuffled.length - 1];
+    shuffled[shuffled.length - 1] = first;
+  }
+  return shuffled;
+}
+
+/**
+ * Generates 4 multiple-choice options with smart pedagogical distractors
+ * (adjacent multiples, ±10 decade errors, digit transposition, and close neighbors)
+ */
+export function buildSmartPedagogicalOptions(
+  correctAnswer: number,
+  terms: number[],
+  operator: MathOperator
+): { options: number[]; correctIndex: number } {
+  const a = terms[0] ?? 2;
+  const b = terms[1] ?? 2;
+  const candidates: number[] = [];
+
+  if (operator === '×') {
+    // Adjacent multiplication table results (most realistic student slip-ups)
+    candidates.push(
+      a * Math.max(1, b - 1),
+      a * (b + 1),
+      Math.max(1, a - 1) * b,
+      (a + 1) * b,
+      correctAnswer + a,
+      correctAnswer - a,
+      correctAnswer + b,
+      correctAnswer - b,
+      correctAnswer + 2,
+      correctAnswer - 2,
+      correctAnswer + 1,
+      correctAnswer - 1
+    );
+  } else if (operator === '÷') {
+    candidates.push(
+      correctAnswer - 1,
+      correctAnswer + 1,
+      correctAnswer - 2,
+      correctAnswer + 2,
+      b !== correctAnswer ? b : correctAnswer + 3,
+      correctAnswer + 3
+    );
+  } else {
+    // Addition & Subtraction: close neighbors and ±10 decade slips
+    candidates.push(
+      correctAnswer + 1,
+      correctAnswer - 1,
+      correctAnswer + 2,
+      correctAnswer - 2
+    );
+    if (correctAnswer > 10) {
+      candidates.push(correctAnswer + 10, correctAnswer - 10);
+    }
+    candidates.push(correctAnswer + 3, correctAnswer - 3);
+  }
+
+  // Add digit transposition for 2-digit answers (e.g., 56 -> 65, 24 -> 42)
+  if (correctAnswer >= 12 && correctAnswer <= 98) {
+    const tens = Math.floor(correctAnswer / 10);
+    const ones = correctAnswer % 10;
+    if (ones !== 0 && tens !== ones) {
+      candidates.push(ones * 10 + tens);
+    }
+  }
+
+  // Shuffle candidate pool and pick 3 unique positive distractors
+  const shuffledCandidates = candidates.sort(() => Math.random() - 0.5);
+  const distractors = new Set<number>();
+
+  for (const val of shuffledCandidates) {
+    const rounded = Math.round(val);
+    if (rounded >= 1 && rounded !== correctAnswer) {
+      distractors.add(rounded);
+    }
+    if (distractors.size >= 3) break;
+  }
+
+  let fallbackOffset = 1;
+  while (distractors.size < 3) {
+    const candidate = Math.max(1, correctAnswer + fallbackOffset);
+    if (candidate !== correctAnswer && !distractors.has(candidate)) {
+      distractors.add(candidate);
+    }
+    fallbackOffset = fallbackOffset > 0 ? -fallbackOffset : -fallbackOffset + 1;
+  }
+
+  const options = [correctAnswer, ...Array.from(distractors).slice(0, 3)].sort(
+    () => Math.random() - 0.5
+  );
+  return {
+    options,
+    correctIndex: options.indexOf(correctAnswer),
+  };
+}
+
+/**
+ * Converts a mathematical operator symbol into spoken Portuguese (pt-BR)
+ */
+export function operatorToSpokenPtBr(op: MathOperator | string): string {
+  switch (op) {
+    case '+':
+      return 'mais';
+    case '-':
+    case '−':
+      return 'menos';
+    case '×':
+    case '*':
+    case 'x':
+      return 'vezes';
+    case '÷':
+    case '/':
+      return 'dividido por';
+    default:
+      return 'mais';
+  }
+}
+
+/**
+ * Formats a question into the spoken formula: "Quanto é N [equação] N?"
+ */
+export function formatQuestionSpeechFormula(question: {
+  equationFormat?: 'MISSING_ADDEND' | 'STANDARD_RESULT';
+  terms: number[];
+  operators: MathOperator[];
+  targetValue?: number;
+}): string {
+  const a = question.terms[0] ?? 0;
+  const b = question.terms[1] ?? 0;
+  const opWord = operatorToSpokenPtBr(question.operators[0] || '+');
+
+  if (question.equationFormat === 'MISSING_ADDEND' && typeof question.targetValue === 'number') {
+    return `Quanto é ${a} mais quanto igual a ${question.targetValue}?`;
+  }
+
+  return `Quanto é ${a} ${opWord} ${b}?`;
+}
+
+/**
+ * Formats the spoken correct answer reveal: "Resposta certa N"
+ */
+export function formatAnswerRevealSpeech(correctAnswer: number): string {
+  return `Resposta certa ${correctAnswer}`;
+}
+
+

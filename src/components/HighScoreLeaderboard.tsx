@@ -218,16 +218,18 @@ export function computeCumulativePlayerRanks(entries: HighScoreEntry[]): Cumulat
 }
 
 /**
- * Global Sound Settings Toggle (Independent Background Music & Sound Effects Mute/Unmute)
+ * Global Sound Settings Toggle (Independent Background Music, Sound Effects & Voice TTS Mute/Unmute)
  */
 export const GlobalSoundSettingsToggle: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
   const [sfxMuted, setSfxMuted] = useState<boolean>(soundEngine.isSfxMuted());
   const [bgmMuted, setBgmMuted] = useState<boolean>(soundEngine.isBgmMuted());
+  const [ttsMuted, setTtsMuted] = useState<boolean>(soundEngine.isTtsMuted());
 
   useEffect(() => {
     const unsubscribe = soundEngine.subscribe((state) => {
       setSfxMuted(state.sfxMuted);
       setBgmMuted(state.bgmMuted);
+      setTtsMuted(state.ttsMuted);
     });
     return unsubscribe;
   }, []);
@@ -240,10 +242,14 @@ export const GlobalSoundSettingsToggle: React.FC<{ compact?: boolean }> = ({ com
     soundEngine.toggleSfxMute();
   };
 
+  const handleToggleTts = () => {
+    soundEngine.toggleTtsMute();
+  };
+
   return (
     <div
       role="group"
-      aria-label="Configurações Globais de Áudio (Música e Efeitos Sonoros)"
+      aria-label="Configurações Globais de Áudio (Música, Efeitos Sonoros e Leitura em Voz Alta)"
       className="inline-flex items-center gap-1.5 bg-[#0F172A] border border-white/25 rounded-xl p-1 shrink-0"
     >
       {/* Independent Background Music Toggle */}
@@ -282,6 +288,31 @@ export const GlobalSoundSettingsToggle: React.FC<{ compact?: boolean }> = ({ com
           <Volume2 className="w-3.5 h-3.5 text-white" />
         )}
         {!compact && <span>{sfxMuted ? 'Efeitos Off' : 'Efeitos On'}</span>}
+      </button>
+
+      {/* Independent Portuguese TTS Voice Narration Toggle */}
+      <button
+        type="button"
+        data-tv-focusable="true"
+        onClick={handleToggleTts}
+        title={
+          ttsMuted
+            ? 'Ativar Leitura em Voz Alta das Perguntas (TTS)'
+            : 'Silenciar Leitura em Voz Alta das Perguntas (TTS)'
+        }
+        aria-pressed={!ttsMuted}
+        className={`tv-focusable min-h-[32px] px-2.5 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap ${
+          ttsMuted
+            ? 'bg-slate-800/90 text-slate-400 hover:text-white border border-slate-700'
+            : 'bg-[#007AFF] text-white border border-white/50 shadow-sm'
+        }`}
+      >
+        {ttsMuted ? (
+          <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+        ) : (
+          <Volume2 className="w-3.5 h-3.5 text-[#FFD600]" />
+        )}
+        {!compact && <span>{ttsMuted ? 'Voz Off' : 'Voz On'}</span>}
       </button>
     </div>
   );
