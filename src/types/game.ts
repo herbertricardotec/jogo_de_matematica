@@ -97,6 +97,42 @@ export function createEmptyOperationStats(): PlayerOperationStats {
   };
 }
 
+export type BotTargetAccuracy = 100 | 60 | 40 | 20;
+export type BotAccuracyMode = 'RANDOM' | BotTargetAccuracy;
+
+export const BOT_ACCURACY_TARGETS: BotTargetAccuracy[] = [100, 60, 40, 20];
+
+export function resolveBotAccuracyTarget(mode?: BotAccuracyMode): BotTargetAccuracy {
+  if (mode === 100 || mode === 60 || mode === 40 || mode === 20) {
+    return mode;
+  }
+  const idx = Math.floor(Math.random() * BOT_ACCURACY_TARGETS.length);
+  return BOT_ACCURACY_TARGETS[idx];
+}
+
+export function buildBotPlannedOutcomes(
+  totalRounds: number,
+  targetPct: BotTargetAccuracy
+): boolean[] {
+  const rounds = Math.max(1, totalRounds);
+  const targetCorrectCount = Math.max(
+    0,
+    Math.min(rounds, Math.round((targetPct / 100) * rounds))
+  );
+  const outcomes: boolean[] = [];
+  for (let i = 0; i < rounds; i++) {
+    outcomes.push(i < targetCorrectCount);
+  }
+  // Fisher-Yates shuffle so the machine's correct/wrong answers happen in random rounds
+  for (let i = outcomes.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = outcomes[i];
+    outcomes[i] = outcomes[j];
+    outcomes[j] = temp;
+  }
+  return outcomes;
+}
+
 export interface GameSettings {
   mode: GameMode;
   difficulty: DifficultyLevel;
@@ -105,6 +141,9 @@ export interface GameSettings {
   timePerQuestionSec: number;
   useCustomQuestions?: boolean;
   customQuestions?: CustomEquationItem[];
+  vsMachine?: boolean;
+  botAccuracyMode?: BotAccuracyMode;
+  resolvedBotTargetPct?: BotTargetAccuracy;
 }
 
 export type AvatarBaseCharacterId =
@@ -329,6 +368,127 @@ export interface PlayerState {
   failedOptionsOnCurrent?: number[];
   visualHintUnlocked?: boolean;
   visualHintActive?: boolean;
+  isBot?: boolean;
+  botTargetAccuracyPct?: BotTargetAccuracy;
+  botPlannedOutcomes?: boolean[];
+}
+
+export function createMachineBotPlayer(
+  slotIndex: number,
+  totalRounds: number,
+  targetPct: BotTargetAccuracy
+): PlayerState {
+  return {
+    id: 'bot_machine_player',
+    name: 'Máquina (Robô)',
+    avatarId: 'robo_calc|#A855F7|headphones',
+    color: '#A855F7',
+    slotIndex,
+    score: 0,
+    stars: 0,
+    streak: 0,
+    bestStreak: 0,
+    correctCount: 0,
+    totalAnswered: 0,
+    totalAnswerTimeMs: 0,
+    currentAnswer: null,
+    answerTimeMs: null,
+    lastPointsEarned: 0,
+    isConnected: true,
+    isHost: false,
+    powerUpsUsed: {
+      FIFTY_FIFTY: false,
+      FREEZE_TIME: false,
+      DOUBLE_STARS: false,
+    },
+    eliminatedOptions: [],
+    doubleStarsActive: false,
+    continueChoice: 'YES',
+    medals: [],
+    operationStats: createEmptyOperationStats(),
+    wrongAttemptsOnCurrent: 0,
+    failedOptionsOnCurrent: [],
+    visualHintUnlocked: false,
+    visualHintActive: false,
+    isBot: true,
+    botTargetAccuracyPct: targetPct,
+    botPlannedOutcomes: buildBotPlannedOutcomes(totalRounds, targetPct),
+  };
+}
+
+export function syncMachineBotInRoom(state: RoomState): void {
+  const humanPlayers = state.players.filter((p) => !p.isBot);
+
+  if (humanPlayers.length > 1 || !state.settings.vsMachine) {
+    state.players = state.players.filter((p) => !p.isBot);
+    if (humanPlayers.length > 1) {
+      state.settings.vsMachine = false;
+    }
+    return;
+  }
+
+  // Only 0 or 1 human player and vsMachine is enabled
+  if (!state.settings.botAccuracyMode) {
+    state.settings.botAccuracyMode = 'RANDOM';
+  }
+  const targetPct =
+    state.settings.resolvedBotTargetPct ||
+    resolveBotAccuracyTarget(state.settings.botAccuracyMode);
+  state.settings.resolvedBotTargetPct = targetPct;
+
+  let existingBot = state.players.find((p) => p.isBot);
+  if (!existingBot) {
+    const usedSlots = new Set(humanPlayers.map((p) => p.slotIndex));
+    // Prefer slot 1 so slot 0 remains available for Player 1
+    let slotIndex = usedSlots.has(0) ? 1 : 1;
+    while (usedSlots.has(slotIndex) && slotIndex < 4) slotIndex++;
+    existingBot = createMachineBotPlayer(slotIndex, state.settings.totalRounds, targetPct);
+    state.players.push(existingBot);
+  } else {
+    existingBot.isConnected = true;
+    existingBot.botTargetAccuracyPct = targetPct;
+    if (
+      !existingBot.botPlannedOutcomes ||
+      existingBot.botPlannedOutcomes.length !== state.settings.totalRounds
+    ) {
+      existingBot.botPlannedOutcomes = buildBotPlannedOutcomes(
+        state.settings.totalRounds,
+        targetPct
+      );
+    }
+  }
+}
+
+export function lockMachineBotAnswer(state: RoomState): boolean {
+  if (state.status !== 'QUESTION_ACTIVE' || !state.currentQuestion) return false;
+  const bot = state.players.find((p) => p.isBot);
+  if (!bot || bot.currentAnswer !== null) return false;
+
+  const q = state.currentQuestion;
+  const targetPct =
+    bot.botTargetAccuracyPct ||
+    state.settings.resolvedBotTargetPct ||
+    resolveBotAccuracyTarget(state.settings.botAccuracyMode);
+
+  if (!bot.botPlannedOutcomes || bot.botPlannedOutcomes.length !== state.settings.totalRounds) {
+    bot.botPlannedOutcomes = buildBotPlannedOutcomes(state.settings.totalRounds, targetPct);
+  }
+
+  const roundIdx = Math.max(0, Math.min(bot.botPlannedOutcomes.length - 1, q.roundNumber - 1));
+  const shouldBeCorrect = Boolean(bot.botPlannedOutcomes[roundIdx]);
+
+  let chosenIndex = q.correctIndex;
+  if (!shouldBeCorrect) {
+    const wrongOptions = [0, 1, 2, 3].filter((idx) => idx !== q.correctIndex);
+    chosenIndex = wrongOptions[Math.floor(Math.random() * wrongOptions.length)];
+  }
+
+  const elapsed = Math.max(1500, Math.min(q.durationMs - 400, Date.now() - q.startedAt));
+  bot.currentAnswer = chosenIndex;
+  bot.answerTimeMs = elapsed;
+  bot.totalAnswered += 1;
+  bot.totalAnswerTimeMs += elapsed;
+  return true;
 }
 
 export function evaluatePlayerMedals(

@@ -7,6 +7,7 @@ import {
   AVATAR_BASE_CHARACTERS,
   AvatarAccessoryId,
   AvatarBaseCharacterId,
+  BotAccuracyMode,
   DifficultyLevel,
   evaluatePlayerMedals,
   GameMode,
@@ -26,6 +27,7 @@ import {
 } from './AvatarIcon.tsx';
 import {
   Award,
+  Bot,
   CheckCircle2,
   Clock,
   Crown,
@@ -55,6 +57,8 @@ interface MobileControllerViewProps {
     difficulty?: DifficultyLevel;
     moduleId?: LearningModuleId;
     totalRounds?: number;
+    vsMachine?: boolean;
+    botAccuracyMode?: BotAccuracyMode;
   }) => void;
   onStartGame: () => void;
   onRestartGame: () => void;
@@ -512,6 +516,7 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                 </div>
 
                 {/* Difficulty Selector */}
+                {/* Difficulty Selector */}
                 <div className="grid grid-cols-3 gap-2">
                   {(
                     [
@@ -536,6 +541,84 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                     </button>
                   ))}
                 </div>
+
+                {/* 1-PLAYER ONLY: OPTION TO COMPETE AGAINST THE MACHINE (100%, 60%, 40%, 20%, RANDOM) */}
+                {roomState.players.filter((p) => !p.isBot).length <= 1 && (
+                  <div className="rounded-2xl bg-slate-900/95 border-2 border-purple-400/50 p-3 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Bot className="w-5 h-5 text-[#A855F7]" />
+                        <div>
+                          <div className="text-xs font-black text-white">
+                            Disputar contra a Máquina (Robô)
+                          </div>
+                          <div className="text-[10px] font-bold text-sky-300">
+                            Exclusivo quando há apenas 1 jogador na sala
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onConfigureGame({
+                            vsMachine: !roomState.settings.vsMachine,
+                            botAccuracyMode: roomState.settings.botAccuracyMode || 'RANDOM',
+                          });
+                        }}
+                        className={`cube-3d px-3 py-1.5 rounded-xl text-xs font-black border-2 transition-all whitespace-nowrap ${
+                          roomState.settings.vsMachine
+                            ? 'bg-[#A855F7] text-white border-white'
+                            : 'bg-slate-800 text-slate-300 border-slate-600'
+                        }`}
+                      >
+                        {roomState.settings.vsMachine ? '✓ Ativado' : 'Ativar Máquina'}
+                      </button>
+                    </div>
+
+                    {roomState.settings.vsMachine && (
+                      <div className="space-y-1.5 pt-1 border-t border-white/10">
+                        <div className="text-[11px] font-extrabold text-[#FFD600]">
+                          Objetivo de acertos da Máquina no teste:
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {(
+                            [
+                              { mode: 'RANDOM', label: '🎲 Aleatório' },
+                              { mode: 100, label: '100% acertos' },
+                              { mode: 60, label: '60% acertos' },
+                              { mode: 40, label: '40% acertos' },
+                              { mode: 20, label: '20% acertos' },
+                            ] as { mode: BotAccuracyMode; label: string }[]
+                          ).map((opt) => {
+                            const currentMode = roomState.settings.botAccuracyMode || 'RANDOM';
+                            const isActive = currentMode === opt.mode;
+                            return (
+                              <button
+                                key={String(opt.mode)}
+                                type="button"
+                                onClick={() =>
+                                  onConfigureGame({
+                                    vsMachine: true,
+                                    botAccuracyMode: opt.mode,
+                                  })
+                                }
+                                className={`min-h-[38px] px-2 py-1 rounded-xl text-[11px] font-black border transition-colors ${
+                                  isActive
+                                    ? 'bg-[#FFD600] text-slate-950 border-white'
+                                    : 'bg-slate-950 text-slate-300 border-slate-700'
+                                } ${opt.mode === 'RANDOM' ? 'col-span-3' : ''}`}
+                              >
+                                {opt.mode === 'RANDOM'
+                                  ? '🎲 Aleatoriamente (Sorteia 100%, 60%, 40% ou 20%)'
+                                  : opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <button
                   type="button"

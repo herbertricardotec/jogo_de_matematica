@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import {
+  BotAccuracyMode,
+  buildBotPlannedOutcomes,
   createEmptyOperationStats,
   CustomEquationItem,
   DifficultyLevel,
@@ -7,10 +9,13 @@ import {
   GameMode,
   GameSettings,
   LearningModuleId,
+  lockMachineBotAnswer,
   MathQuestion,
   PLAYER_AVATARS,
   PowerUpType,
+  resolveBotAccuracyTarget,
   RoomState,
+  syncMachineBotInRoom,
   VisualBlockGroup,
 } from '../src/types/game.ts';
 
@@ -211,10 +216,13 @@ function createRoomState(codeOverride?: string): RoomState {
     mode: 'COMPETITIVE',
     difficulty: 'EASY',
     moduleId: 'MODULE_1_NUMBERS',
-    totalRounds: 6,
+    totalRounds: 5,
     timePerQuestionSec: 18,
     useCustomQuestions: false,
     customQuestions: [],
+    vsMachine: false,
+    botAccuracyMode: 'RANDOM',
+    resolvedBotTargetPct: 60,
   };
   const state: RoomState = {
     code,
@@ -223,7 +231,7 @@ function createRoomState(codeOverride?: string): RoomState {
     players: [],
     currentQuestion: null,
     teamScore: 0,
-    teamTarget: 3600,
+    teamTarget: 3000,
     pausedRemainingMs: null,
     lastPowerUpAnnouncement: null,
     gameOverStartedAt: null,
@@ -238,7 +246,12 @@ function advanceTimersOnRead(room: RoomState) {
   const now = Date.now();
   if (room.status === 'QUESTION_ACTIVE' && room.currentQuestion) {
     const elapsed = now - room.currentQuestion.startedAt;
+    // Have the Machine Bot lock its answer around 3 seconds into the question
+    if (elapsed >= 3000) {
+      lockMachineBotAnswer(room);
+    }
     if (elapsed >= room.currentQuestion.durationMs) {
+      lockMachineBotAnswer(room);
       revealCurrentRound(room);
     }
   } else if (room.status === 'ROUND_REVEAL' && room.currentQuestion) {
@@ -249,7 +262,7 @@ function advanceTimersOnRead(room: RoomState) {
         room.status = 'GAME_OVER';
         room.gameOverStartedAt = now;
         for (const p of room.players) {
-          p.continueChoice = 'PENDING';
+          p.continueChoice = p.isBot ? 'YES' : 'PENDING';
           p.medals = evaluatePlayerMedals(p, room.settings.totalRounds);
         }
       } else {
@@ -423,13 +436,18 @@ export default async function handler(req: IncomingMessage & { body?: any; query
       const name = String(body.name || 'Jogador').trim().slice(0, 14) || 'Jogador';
       const avatarId = String(body.avatarId || PLAYER_AVATARS[0].id);
 
-      let existing = room.players.find((p) => p.id === playerId);
+      let existing = room.players.find((p) => p.id === playerId && !p.isBot);
       if (existing) {
         existing.name = name;
         existing.avatarId = avatarId;
         existing.color = extractColorFromAvatarId(avatarId, existing.slotIndex);
         existing.isConnected = true;
       } else {
+        const humanPlayers = room.players.filter((p) => !p.isBot);
+        if (humanPlayers.length >= 1) {
+          room.players = room.players.filter((p) => !p.isBot);
+          room.settings.vsMachine = false;
+        }
         const usedSlots = new Set(room.players.map((p) => p.slotIndex));
         let slotIndex = 0;
         while (usedSlots.has(slotIndex) && slotIndex < 4) slotIndex++;
@@ -450,7 +468,7 @@ export default async function handler(req: IncomingMessage & { body?: any; query
           answerTimeMs: null,
           lastPointsEarned: 0,
           isConnected: true,
-          isHost: room.players.length === 0,
+          isHost: humanPlayers.length === 0,
           powerUpsUsed: { FIFTY_FIFTY: false, FREEZE_TIME: false, DOUBLE_STARS: false },
           eliminatedOptions: [],
           doubleStarsActive: false,
@@ -464,6 +482,7 @@ export default async function handler(req: IncomingMessage & { body?: any; query
         };
         room.players.push(existing);
       }
+      syncMachineBotInRoom(room);
       if (room.status === 'TITLE_MENU') room.status = 'LOBBY';
       room.lastUpdatedAt = Date.now();
     } else if (type === 'admin:kick_player') {
@@ -504,9 +523,31 @@ export default async function handler(req: IncomingMessage & { body?: any; query
       if (body.difficulty) room.settings.difficulty = body.difficulty;
       if (body.moduleId) room.settings.moduleId = body.moduleId;
       if (typeof body.totalRounds === 'number') room.settings.totalRounds = body.totalRounds;
+      if (typeof body.vsMachine === 'boolean') {
+        room.settings.vsMachine = body.vsMachine;
+        if (
+          room.settings.vsMachine &&
+          !room.settings.useCustomQuestions &&
+          room.settings.totalRounds % 5 !== 0
+        ) {
+          room.settings.totalRounds = 5;
+        }
+      }
+      if (
+        body.botAccuracyMode === 'RANDOM' ||
+        body.botAccuracyMode === 100 ||
+        body.botAccuracyMode === 60 ||
+        body.botAccuracyMode === 40 ||
+        body.botAccuracyMode === 20
+      ) {
+        room.settings.botAccuracyMode = body.botAccuracyMode as BotAccuracyMode;
+        room.settings.resolvedBotTargetPct = resolveBotAccuracyTarget(room.settings.botAccuracyMode);
+      }
+      syncMachineBotInRoom(room);
     } else if (type === 'game:start') {
-      if (room.players.length === 0) {
-        room.players.push({
+      const humanPlayers = room.players.filter((p) => !p.isBot);
+      if (humanPlayers.length === 0) {
+        room.players.unshift({
           id: 'tv_local_player_1',
           name: 'Jogador TV 1',
           avatarId: PLAYER_AVATARS[0].id,
@@ -536,6 +577,15 @@ export default async function handler(req: IncomingMessage & { body?: any; query
           visualHintActive: false,
         });
       }
+      if (room.settings.vsMachine) {
+        room.settings.resolvedBotTargetPct = resolveBotAccuracyTarget(
+          room.settings.botAccuracyMode
+        );
+        if (!room.settings.useCustomQuestions && room.settings.totalRounds % 5 !== 0) {
+          room.settings.totalRounds = 5;
+        }
+      }
+      syncMachineBotInRoom(room);
       for (const p of room.players) {
         p.score = 0;
         p.stars = 0;
@@ -550,6 +600,13 @@ export default async function handler(req: IncomingMessage & { body?: any; query
         p.failedOptionsOnCurrent = [];
         p.visualHintUnlocked = false;
         p.visualHintActive = false;
+        if (p.isBot) {
+          const pct =
+            room.settings.resolvedBotTargetPct ||
+            resolveBotAccuracyTarget(room.settings.botAccuracyMode);
+          p.botTargetAccuracyPct = pct;
+          p.botPlannedOutcomes = buildBotPlannedOutcomes(room.settings.totalRounds, pct);
+        }
       }
       startQuestion(room, 1);
     } else if (type === 'player:answer') {
@@ -587,6 +644,10 @@ export default async function handler(req: IncomingMessage & { body?: any; query
           p.answerTimeMs = Math.max(100, Date.now() - q.startedAt);
           p.totalAnswered += 1;
           p.totalAnswerTimeMs += p.answerTimeMs;
+          const humans = room.players.filter((pl) => !pl.isBot);
+          if (humans.length > 0 && humans.every((pl) => pl.currentAnswer !== null)) {
+            lockMachineBotAnswer(room);
+          }
           if (room.players.every((pl) => pl.currentAnswer !== null)) {
             revealCurrentRound(room);
           }

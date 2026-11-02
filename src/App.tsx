@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  BotAccuracyMode,
   CustomEquationItem,
   DifficultyLevel,
   GameMode,
@@ -440,6 +441,8 @@ export default function App() {
       difficulty?: DifficultyLevel;
       moduleId?: LearningModuleId;
       totalRounds?: number;
+      vsMachine?: boolean;
+      botAccuracyMode?: BotAccuracyMode;
     }) => {
       sendAction({
         type: 'game:configure',

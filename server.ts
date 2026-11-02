@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import {
+  BotAccuracyMode,
+  buildBotPlannedOutcomes,
   createEmptyOperationStats,
   CustomEquationItem,
   DifficultyLevel,
@@ -12,10 +14,13 @@ import {
   GameMode,
   GameSettings,
   LearningModuleId,
+  lockMachineBotAnswer,
   MathQuestion,
   PLAYER_AVATARS,
   PowerUpType,
+  resolveBotAccuracyTarget,
   RoomState,
+  syncMachineBotInRoom,
   VisualBlockGroup,
 } from './src/types/game.ts';
 
@@ -29,6 +34,7 @@ interface InternalRoom {
   roundTimer: NodeJS.Timeout | null;
   revealTimer: NodeJS.Timeout | null;
   gameOverTimer: NodeJS.Timeout | null;
+  botTimer: NodeJS.Timeout | null;
   questionRemainingMs: number;
 }
 
@@ -261,10 +267,13 @@ function createRoom(initialStatus: 'TITLE_MENU' | 'LOBBY' = 'TITLE_MENU'): Inter
     mode: 'COMPETITIVE',
     difficulty: 'EASY',
     moduleId: 'MODULE_1_NUMBERS',
-    totalRounds: 6,
+    totalRounds: 5,
     timePerQuestionSec: 18,
     useCustomQuestions: false,
     customQuestions: [],
+    vsMachine: false,
+    botAccuracyMode: 'RANDOM',
+    resolvedBotTargetPct: 60,
   };
 
   const room: InternalRoom = {
@@ -275,7 +284,7 @@ function createRoom(initialStatus: 'TITLE_MENU' | 'LOBBY' = 'TITLE_MENU'): Inter
       players: [],
       currentQuestion: null,
       teamScore: 0,
-      teamTarget: 3600,
+      teamTarget: 3000,
       pausedRemainingMs: null,
       lastPowerUpAnnouncement: null,
       gameOverStartedAt: null,
@@ -287,6 +296,7 @@ function createRoom(initialStatus: 'TITLE_MENU' | 'LOBBY' = 'TITLE_MENU'): Inter
     roundTimer: null,
     revealTimer: null,
     gameOverTimer: null,
+    botTimer: null,
     questionRemainingMs: 18000,
   };
 
@@ -333,6 +343,10 @@ function clearRoomTimers(room: InternalRoom) {
     clearTimeout(room.gameOverTimer);
     room.gameOverTimer = null;
   }
+  if (room.botTimer) {
+    clearTimeout(room.botTimer);
+    room.botTimer = null;
+  }
 }
 
 function transitionToGameOver(room: InternalRoom) {
@@ -342,7 +356,7 @@ function transitionToGameOver(room: InternalRoom) {
   room.state.gameOverStartedAt = Date.now();
   room.state.gameOverDurationMs = gameOverDurationMs;
   for (const p of room.state.players) {
-    p.continueChoice = 'PENDING';
+    p.continueChoice = p.isBot ? 'YES' : 'PENDING';
     p.medals = evaluatePlayerMedals(p, room.state.settings.totalRounds);
   }
   broadcastRoomState(room);
@@ -393,6 +407,32 @@ function startNextQuestion(room: InternalRoom, nextRoundNumber: number) {
   }
 
   broadcastRoomState(room);
+
+  // If playing vs Machine, schedule the Machine's answer between 2.4s and 4.5s
+  if (room.state.players.some((p) => p.isBot)) {
+    const botDelayMs = randomInt(2400, 4500);
+    room.botTimer = setTimeout(() => {
+      if (room.state.status !== 'QUESTION_ACTIVE') return;
+      if (lockMachineBotAnswer(room.state)) {
+        broadcastRoomState(room);
+        const connectedPlayers = room.state.players.filter((p) => p.isConnected);
+        const allAnswered =
+          connectedPlayers.length > 0 &&
+          connectedPlayers.every((p) => p.currentAnswer !== null);
+        if (allAnswered) {
+          if (room.roundTimer) {
+            clearTimeout(room.roundTimer);
+            room.roundTimer = null;
+          }
+          room.roundTimer = setTimeout(() => {
+            if (room.state.status === 'QUESTION_ACTIVE') {
+              revealCurrentRound(room);
+            }
+          }, 650);
+        }
+      }
+    }, botDelayMs);
+  }
 
   room.roundTimer = setTimeout(() => {
     revealCurrentRound(room);
@@ -524,7 +564,7 @@ async function startServer() {
             const name = String(msg.name || 'Jogador').trim().slice(0, 14) || 'Jogador';
             const avatarId = String(msg.avatarId || PLAYER_AVATARS[0].id);
 
-            let existing = room.state.players.find((p) => p.id === playerId);
+            let existing = room.state.players.find((p) => p.id === playerId && !p.isBot);
             if (existing) {
               existing.name = name;
               existing.avatarId = avatarId;
@@ -532,7 +572,8 @@ async function startServer() {
               existing.isConnected = true;
               existing.continueChoice = 'PENDING';
             } else {
-              if (room.state.players.length >= 4) {
+              const humanPlayers = room.state.players.filter((p) => !p.isBot);
+              if (humanPlayers.length >= 4) {
                 ws.send(
                   JSON.stringify({
                     type: 'room:error',
@@ -541,6 +582,12 @@ async function startServer() {
                 );
                 return;
               }
+              // Remove bot first if a 2nd human is joining so slot 1 is available
+              if (humanPlayers.length >= 1) {
+                room.state.players = room.state.players.filter((p) => !p.isBot);
+                room.state.settings.vsMachine = false;
+              }
+
               const usedSlots = new Set(room.state.players.map((p) => p.slotIndex));
               let slotIndex = 0;
               while (usedSlots.has(slotIndex) && slotIndex < 4) slotIndex++;
@@ -562,7 +609,7 @@ async function startServer() {
                 answerTimeMs: null,
                 lastPointsEarned: 0,
                 isConnected: true,
-                isHost: room.state.players.length === 0,
+                isHost: humanPlayers.length === 0,
                 powerUpsUsed: {
                   FIFTY_FIFTY: false,
                   FREEZE_TIME: false,
@@ -577,10 +624,12 @@ async function startServer() {
               room.state.players.push(existing);
             }
 
+            syncMachineBotInRoom(room.state);
+
             currentPlayerId = existing.id;
             room.playerSockets.set(existing.id, ws);
 
-            if (!room.state.players.some((p) => p.isHost && p.isConnected)) {
+            if (!room.state.players.some((p) => !p.isBot && p.isHost && p.isConnected)) {
               existing.isHost = true;
             }
 
@@ -744,6 +793,25 @@ async function startServer() {
             if (typeof msg.totalRounds === 'number' && msg.totalRounds >= 1 && msg.totalRounds <= 15) {
               s.totalRounds = msg.totalRounds;
             }
+            if (typeof msg.vsMachine === 'boolean') {
+              s.vsMachine = msg.vsMachine;
+              if (s.vsMachine && !s.useCustomQuestions && s.totalRounds % 5 !== 0) {
+                s.totalRounds = 5;
+              }
+            }
+            if (
+              msg.botAccuracyMode === 'RANDOM' ||
+              msg.botAccuracyMode === 100 ||
+              msg.botAccuracyMode === 60 ||
+              msg.botAccuracyMode === 40 ||
+              msg.botAccuracyMode === 20
+            ) {
+              s.botAccuracyMode = msg.botAccuracyMode as BotAccuracyMode;
+              s.resolvedBotTargetPct = resolveBotAccuracyTarget(s.botAccuracyMode);
+            }
+
+            syncMachineBotInRoom(currentRoom.state);
+
             const activePlayers = Math.max(1, currentRoom.state.players.length);
             currentRoom.state.teamTarget = activePlayers * s.totalRounds * 550;
             broadcastRoomState(currentRoom);
@@ -752,9 +820,10 @@ async function startServer() {
 
           case 'game:start': {
             if (!currentRoom) return;
-            if (currentRoom.state.players.length === 0) {
+            const humanPlayers = currentRoom.state.players.filter((p) => !p.isBot);
+            if (humanPlayers.length === 0) {
               const avatar = PLAYER_AVATARS[0];
-              currentRoom.state.players.push({
+              currentRoom.state.players.unshift({
                 id: 'tv_local_player_1',
                 name: 'Jogador TV 1',
                 avatarId: avatar.id,
@@ -785,6 +854,20 @@ async function startServer() {
               });
             }
 
+            // Re-resolve bot target accuracy at match start (especially if mode is 'RANDOM')
+            if (currentRoom.state.settings.vsMachine) {
+              currentRoom.state.settings.resolvedBotTargetPct = resolveBotAccuracyTarget(
+                currentRoom.state.settings.botAccuracyMode
+              );
+              if (
+                !currentRoom.state.settings.useCustomQuestions &&
+                currentRoom.state.settings.totalRounds % 5 !== 0
+              ) {
+                currentRoom.state.settings.totalRounds = 5;
+              }
+            }
+            syncMachineBotInRoom(currentRoom.state);
+
             currentRoom.state.teamScore = 0;
             const activePlayers = Math.max(1, currentRoom.state.players.length);
             currentRoom.state.teamTarget =
@@ -808,8 +891,18 @@ async function startServer() {
               };
               p.eliminatedOptions = [];
               p.doubleStarsActive = false;
-              p.continueChoice = 'PENDING';
+              p.continueChoice = p.isBot ? 'YES' : 'PENDING';
               p.medals = [];
+              if (p.isBot) {
+                const pct =
+                  currentRoom.state.settings.resolvedBotTargetPct ||
+                  resolveBotAccuracyTarget(currentRoom.state.settings.botAccuracyMode);
+                p.botTargetAccuracyPct = pct;
+                p.botPlannedOutcomes = buildBotPlannedOutcomes(
+                  currentRoom.state.settings.totalRounds,
+                  pct
+                );
+              }
             }
 
             startNextQuestion(currentRoom, 1);
@@ -939,6 +1032,17 @@ async function startServer() {
                 player.totalAnswered += 1;
                 player.totalAnswerTimeMs += player.answerTimeMs;
               }
+            }
+
+            // If all human players have locked their answer, make sure the Machine also locks its answer so the round doesn't stall
+            const connectedHumans = currentRoom.state.players.filter(
+              (p) => p.isConnected && !p.isBot
+            );
+            const allHumansAnswered =
+              connectedHumans.length > 0 &&
+              connectedHumans.every((p) => p.currentAnswer !== null);
+            if (allHumansAnswered) {
+              lockMachineBotAnswer(currentRoom.state);
             }
 
             broadcastRoomState(currentRoom);
