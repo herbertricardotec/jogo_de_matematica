@@ -40,6 +40,8 @@ import {
   Home,
   Lock,
   LogOut,
+  Maximize2,
+  Minimize2,
   Pause,
   Play,
   Plus,
@@ -108,7 +110,7 @@ function navigateSpatialDpad(direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'): boole
 
   const current = document.activeElement as HTMLElement | null;
   if (!current || !focusables.includes(current)) {
-    focusables[0].focus();
+    focusables[0].focus({ preventScroll: true });
     return true;
   }
 
@@ -160,7 +162,10 @@ function navigateSpatialDpad(direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'): boole
   }
 
   if (bestCandidate) {
-    bestCandidate.focus();
+    bestCandidate.focus({ preventScroll: true });
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
     return true;
   }
   return false;
@@ -214,6 +219,52 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   const [parentalAnswer, setParentalAnswer] = useState<string>('');
   const [parentalUnlocked, setParentalUnlocked] = useState<boolean>(false);
 
+  // Fire TV Stick & Smart TV Auto-Fit Viewport Scaler + Fullscreen State
+  const [tvScale, setTvScale] = useState<number>(1);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const updateScaleAndFullscreen = () => {
+      if (typeof window === 'undefined') return;
+      window.scrollTo(0, 0);
+      const vw = window.visualViewport?.width || window.innerWidth || 1280;
+      const vh = window.visualViewport?.height || window.innerHeight || 720;
+
+      // Target 16:9 HD TV reference canvas (1280x695) so Fire TV Stick Silk Browser
+      // (which reports 960x540 or ~960x450 when the Silk URL bar is open) scales 100% into view!
+      const targetWidth = 1280;
+      const targetHeight = 695;
+      const scaleX = vw / targetWidth;
+      const scaleY = vh / targetHeight;
+      const nextScale = Math.max(0.45, Math.min(1, scaleX, scaleY));
+      setTvScale(nextScale);
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    updateScaleAndFullscreen();
+    window.addEventListener('resize', updateScaleAndFullscreen);
+    document.addEventListener('fullscreenchange', updateScaleAndFullscreen);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateScaleAndFullscreen);
+    }
+    return () => {
+      window.removeEventListener('resize', updateScaleAndFullscreen);
+      document.removeEventListener('fullscreenchange', updateScaleAndFullscreen);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateScaleAndFullscreen);
+      }
+    };
+  }, [roomState.status]);
+
+  const handleToggleFullscreen = () => {
+    if (typeof document === 'undefined') return;
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
   const mobileJoinUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}${window.location.pathname}?room=${roomState.code}&role=controller`
@@ -234,12 +285,15 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
       .catch(() => setQrDataUrl(''));
   }, [roomState.code, mobileJoinUrl]);
 
-  // Auto-focus primary CTA on screen status change for Fire TV D-Pad
+  // Auto-focus primary CTA on screen status change for Fire TV D-Pad (with preventScroll so Silk Browser never shifts!)
   useEffect(() => {
     const timer = setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        window.scrollTo(0, 0);
+      }
       const primary = document.querySelector<HTMLElement>('[data-tv-primary="true"]');
       if (primary) {
-        primary.focus();
+        primary.focus({ preventScroll: true });
       }
     }, 120);
     return () => clearTimeout(timer);
@@ -431,7 +485,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   };
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#071936] text-[#F8FAFC] select-none flex flex-col justify-between">
+    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-[#071936] text-[#F8FAFC] select-none">
       {/* 60fps Classroom & Floating 3D Math Symbols Canvas */}
       <StudioStageCanvas
         status={roomState.status}
@@ -440,725 +494,764 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
         isLightningRound={Boolean(question?.isLightningRound)}
       />
 
-      {/* TOP BAR HUD + ALWAYS-VISIBLE RECONNECTION QR CODE WIDGET */}
-      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 lg:px-8 py-2.5 border-b-2 border-white/15 bg-[#0A192F]/95">
-        {/* Left Zone: Prominent Brand Name (Removed "Módulo 1: Conhecendo os Números" per user request!) */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            data-tv-focusable="true"
-            onClick={() => onSetStatus('TITLE_MENU')}
-            className="tv-focusable flex items-center gap-2 px-3 py-1 rounded-2xl bg-[#007AFF] border-2 border-white shadow-md shrink-0"
-          >
-            <span className="w-6 h-6 rounded-lg bg-[#FFD600] text-slate-950 font-display font-black text-xs flex items-center justify-center">
-              +
-            </span>
-            <span className="font-display font-black text-base sm:text-lg tracking-tight text-white whitespace-nowrap">
-              Jogo de <span className="text-[#FFD600]">Matemática</span>
-            </span>
-          </button>
-        </div>
-
-        {/* Center Zone: ALWAYS-VISIBLE RECONNECTION QR CODE & PIN PILL (Click opens Admin Panel) */}
-        <button
-          type="button"
-          data-tv-focusable="true"
-          onClick={() => setShowAdminPanel(true)}
-          title="Abrir Tela Administrativa dos 4 Jogadores"
-          className="tv-focusable flex items-center gap-3 px-3.5 py-1 rounded-2xl bg-[#0F172A] hover:bg-slate-900 border-2 border-[#FFD600] shadow-md text-left transition-transform active:scale-95"
-        >
-          {qrDataUrl && (
-            <img
-              src={qrDataUrl}
-              alt={`QR Code Sala ${roomState.code}`}
-              referrerPolicy="no-referrer"
-              className="w-10 h-10 rounded-lg bg-white p-0.5 shrink-0"
-            />
-          )}
-          <div className="leading-tight">
-            <div className="text-[10px] font-bold text-sky-300 uppercase">
-              Conectar Celular (QR ou PIN)
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-black text-lg text-[#FFD600] tracking-wider tabular-nums">
-                {roomState.code}
-              </span>
-              <span className="text-slate-500">·</span>
-              <span className="text-xs font-bold text-emerald-400 tabular-nums">
-                {roomState.players.length}/4 Controles
-              </span>
-            </div>
-          </div>
-        </button>
-
-        {/* Right Zone: Admin Panel & Audio Controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          {roomState.settings.useCustomQuestions &&
-            (roomState.settings.customQuestions?.length ?? 0) > 0 && (
-              <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/20 border border-[#FFD600] text-[11px] font-black text-[#FFD600]">
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Modo Professor Ativo ({roomState.settings.customQuestions?.length})</span>
-              </span>
-            )}
-
-          <button
-            type="button"
-            data-tv-focusable="true"
-            onClick={() => setShowAdminPanel((v) => !v)}
-            className={`tv-focusable min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
-              showAdminPanel
-                ? 'bg-[#FFD600] text-slate-950 border-2 border-white'
-                : 'bg-[#A855F7] hover:bg-[#9333EA] text-white border border-white/40'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            <span>Painel Admin</span>
-          </button>
-
-          {(roomState.status === 'QUESTION_ACTIVE' || roomState.status === 'PAUSED') && (
+      {/* AUTO-SCALING FIRE TV STICK & SMART TV VIEWPORT STAGE (Guarantees 100% Fit on 960x540, Silk Browser w/ URL bar, 720p & 1080p) */}
+      <div
+        style={
+          tvScale < 0.999
+            ? {
+                width: `${(100 / tvScale).toFixed(3)}%`,
+                height: `${(100 / tvScale).toFixed(3)}%`,
+                transform: `scale(${tvScale.toFixed(4)})`,
+                transformOrigin: 'top left',
+              }
+            : {
+                width: '100%',
+                height: '100%',
+              }
+        }
+        className="relative z-10 flex flex-col justify-between overflow-hidden px-3 py-1.5"
+      >
+        {/* TOP BAR HUD + ALWAYS-VISIBLE RECONNECTION QR CODE WIDGET */}
+        <header className="relative z-10 flex items-center justify-between gap-3 px-4 lg:px-6 py-2 rounded-2xl border-2 border-white/15 bg-[#0A192F]/95 shrink-0">
+          {/* Left Zone: Prominent Brand Name */}
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               type="button"
               data-tv-focusable="true"
-              onClick={onTogglePause}
-              aria-label="Pausar jogo"
-              className="tv-focusable min-h-[40px] min-w-[40px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
+              onClick={() => onSetStatus('TITLE_MENU')}
+              className="tv-focusable flex items-center gap-2 px-3 py-1 rounded-2xl bg-[#007AFF] border-2 border-white shadow-md shrink-0"
             >
-              {roomState.status === 'PAUSED' ? (
-                <Play className="w-4 h-4 text-[#FFD600]" />
-              ) : (
-                <Pause className="w-4 h-4" />
-              )}
+              <span className="w-6 h-6 rounded-lg bg-[#FFD600] text-slate-950 font-display font-black text-xs flex items-center justify-center">
+                +
+              </span>
+              <span className="font-display font-black text-base sm:text-lg tracking-tight text-white whitespace-nowrap">
+                Jogo de <span className="text-[#FFD600]">Matemática</span>
+              </span>
             </button>
-          )}
+          </div>
 
+          {/* Center Zone: ALWAYS-VISIBLE RECONNECTION QR CODE & PIN PILL (Click opens Admin Panel) */}
           <button
             type="button"
             data-tv-focusable="true"
-            onClick={handleToggleMute}
-            aria-label={muted ? 'Ativar áudio' : 'Silenciar áudio'}
-            className="tv-focusable min-h-[40px] min-w-[40px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
+            onClick={() => setShowAdminPanel(true)}
+            title="Abrir Tela Administrativa dos 4 Jogadores"
+            className="tv-focusable flex items-center gap-2.5 px-3.5 py-1 rounded-2xl bg-[#0F172A] hover:bg-slate-900 border-2 border-[#FFD600] shadow-md text-left transition-transform active:scale-95"
           >
-            {muted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
+            {qrDataUrl && (
+              <img
+                src={qrDataUrl}
+                alt={`QR Code Sala ${roomState.code}`}
+                referrerPolicy="no-referrer"
+                className="w-9 h-9 rounded-lg bg-white p-0.5 shrink-0"
+              />
+            )}
+            <div className="leading-tight">
+              <div className="text-[10px] font-bold text-sky-300 uppercase">
+                Conectar Celular (QR ou PIN)
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-black text-base text-[#FFD600] tracking-wider tabular-nums">
+                  {roomState.code}
+                </span>
+                <span className="text-slate-500">·</span>
+                <span className="text-xs font-bold text-emerald-400 tabular-nums">
+                  {roomState.players.length}/4 Controles
+                </span>
+              </div>
+            </div>
           </button>
-        </div>
-      </header>
 
-      {/* MAIN STAGE BODY */}
-      <main className="relative z-10 flex-1 flex flex-col justify-between px-6 lg:px-10 py-2.5 overflow-y-auto">
-        {/* TELA 1: SPLASH / MENU PRINCIPAL */}
-        {roomState.status === 'TITLE_MENU' && (
-          <div className="my-auto max-w-4xl w-full mx-auto flex flex-col items-center text-center space-y-4">
-            <KidsMathSplashHero />
-
-            <div className="flex flex-wrap items-center justify-center gap-4 pt-1">
-              <button
-                type="button"
-                data-tv-focusable="true"
-                data-tv-primary="true"
-                onClick={() => {
-                  soundEngine.playPlayerJoin();
-                  onSetStatus('LOBBY');
-                }}
-                className="tv-focusable cube-3d min-h-[64px] px-12 py-3.5 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-4 border-white text-white font-display font-black text-2xl tracking-wide flex items-center gap-3 shadow-2xl transition-transform active:scale-95 whitespace-nowrap"
-              >
-                <Play className="w-7 h-7 fill-current" />
-                <span>JOGAR</span>
-              </button>
-            </div>
-
-            <div className="flex flex-col items-center gap-1.5 pt-1">
-              <MgnetSoftwareBadge onOpenParentalGate={() => setShowParentalGate(true)} />
-              <div className="text-[11px] text-sky-200 font-bold tracking-wide">
-                Setas do Controle Fire TV Navegam · Enter Seleciona · Celular Pareamento via QR Code
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TELA 2: SELEÇÃO DE MÓDULOS COM DESCRIÇÃO COMPLETA E ILUSTRAÇÕES 3D */}
-        {roomState.status === 'LOBBY' && (
-          <div className="my-auto max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-            {/* Left Card: Big QR Code & 4-Digit PIN */}
-            <div className="lg:col-span-4 rounded-3xl bg-[#0F172A]/95 border-3 border-white/25 p-5 flex flex-col justify-between panel-3d">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-[#FFD600] text-xs font-black uppercase">
-                  <QrCode className="w-4 h-4" />
-                  <span>Controle no Celular (1 a 4 Jogadores)</span>
-                </div>
-                <h2 className="font-display text-xl font-black text-white">
-                  Aponte a câmera do celular para criar seu Avatar 3D!
-                </h2>
-              </div>
-
-              <div className="my-3 flex flex-col items-center gap-2.5 bg-[#071936] p-4 rounded-2xl border-2 border-sky-400/40 text-center">
-                {qrDataUrl && (
-                  <img
-                    src={qrDataUrl}
-                    alt={`QR Code Sala ${roomState.code}`}
-                    referrerPolicy="no-referrer"
-                    className="w-36 h-36 rounded-2xl bg-white p-2"
-                  />
-                )}
-                <div>
-                  <div className="text-xs font-bold text-sky-200">Código PIN da Sala:</div>
-                  <div className="font-mono font-black text-4xl text-[#FFD600] tracking-widest tabular-nums">
-                    {roomState.code}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                data-tv-focusable="true"
-                onClick={onSwitchToFullMobile}
-                className="tv-focusable cube-3d w-full min-h-[46px] rounded-2xl bg-[#007AFF] hover:bg-[#0284C7] border-2 border-white text-xs font-black text-white"
-              >
-                Abrir Login do Celular Nesta Tela
-              </button>
-            </div>
-
-            {/* Right Card: 4 Educational Modules Trail WITH COMPLETE UNTRUNCATED DESCRIPTIONS + 3D ILLUSTRATIONS */}
-            <div className="lg:col-span-8 rounded-3xl bg-[#0F172A]/95 border-3 border-white/25 p-5 flex flex-col justify-between space-y-4 panel-3d">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-xs font-black text-[#22C55E] uppercase">
-                    TRILHA EDUCATIVA 3D · ESCOLHA COM O CONTROLE DA TV OU CELULAR
-                  </div>
-                  <h2 className="font-display text-2xl font-black text-white">
-                    Selecione o Módulo de Matemática
-                  </h2>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {(
-                    [
-                      { id: 'EASY', label: 'Fácil' },
-                      { id: 'MEDIUM', label: 'Médio' },
-                      { id: 'HARD', label: 'Mestre' },
-                    ] as { id: DifficultyLevel; label: string }[]
-                  ).map((lvl) => (
-                    <button
-                      key={lvl.id}
-                      type="button"
-                      data-tv-focusable="true"
-                      onClick={() => onConfigureGame({ difficulty: lvl.id })}
-                      className={`tv-focusable min-h-[40px] px-3.5 py-1.5 rounded-xl font-display font-black text-xs border-2 transition-colors ${
-                        roomState.settings.difficulty === lvl.id
-                          ? 'bg-[#FFD600] text-slate-950 border-white'
-                          : 'bg-slate-900 text-slate-300 border-slate-700'
-                      }`}
-                    >
-                      {lvl.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 4 Educational Modules Grid — Complete descriptions without truncation! */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {LEARNING_MODULES.map((mod) => {
-                  const isSelected = roomState.settings.moduleId === mod.id;
-                  return (
-                    <button
-                      key={mod.id}
-                      type="button"
-                      data-tv-focusable="true"
-                      onClick={() => {
-                        soundEngine.playTick();
-                        onConfigureGame({ moduleId: mod.id });
-                      }}
-                      style={{
-                        backgroundColor: isSelected ? mod.bgColor : '#1E293B',
-                      }}
-                      className={`tv-focusable cube-3d p-4 rounded-3xl border-3 text-left flex flex-col justify-between gap-2.5 transition-all ${
-                        isSelected
-                          ? 'border-white scale-[1.01]'
-                          : 'border-slate-700 hover:border-slate-500 opacity-95'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2 w-full">
-                        <span className="px-2.5 py-0.5 rounded-lg bg-black/30 text-xs font-black uppercase text-[#FFD600]">
-                          {mod.numberLabel}
-                        </span>
-                        <Module3DIllustration moduleId={mod.id} />
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="font-display font-black text-lg sm:text-xl text-white leading-snug">
-                          {mod.title}
-                        </div>
-                        <div className="text-xs sm:text-sm font-bold text-white/95 leading-relaxed">
-                          {mod.subtitle}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 1-PLAYER ONLY: OPTION TO COMPETE AGAINST THE MACHINE (100%, 60%, 40%, 20%, RANDOM) */}
-              {roomState.players.filter((p) => !p.isBot).length <= 1 && (
-                <div className="rounded-2xl bg-[#071936] border-2 border-[#A855F7]/70 p-3.5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-2xl bg-[#A855F7]/25 border border-[#A855F7] flex items-center justify-center text-[#FFD600] shrink-0">
-                        <Bot className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <div className="font-display font-black text-sm sm:text-base text-white flex items-center gap-2">
-                          <span>🤖 Modo 1 Jogador: Disputar contra a Máquina</span>
-                          {roomState.settings.vsMachine && (
-                            <span className="px-2 py-0.5 rounded-full bg-[#22C55E] text-white text-[10px] font-black uppercase">
-                              Ativo
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs font-semibold text-sky-200">
-                          Exclusivo para 1 jogador: desafie o Robô da Matemática em tempo real!
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      data-tv-focusable="true"
-                      onClick={() => {
-                        soundEngine.playTick();
-                        onConfigureGame({
-                          vsMachine: !roomState.settings.vsMachine,
-                          botAccuracyMode: 'RANDOM',
-                        });
-                      }}
-                      className={`tv-focusable cube-3d min-h-[42px] px-4 py-2 rounded-2xl font-display font-black text-xs border-2 transition-all whitespace-nowrap ${
-                        roomState.settings.vsMachine
-                          ? 'bg-[#A855F7] text-white border-white'
-                          : 'bg-slate-900 text-slate-200 border-slate-600 hover:border-white'
-                      }`}
-                    >
-                      {roomState.settings.vsMachine
-                        ? '✓ Disputando contra a Máquina'
-                        : '🤖 Disputar contra a Máquina'}
-                    </button>
-                  </div>
-                </div>
+          {/* Right Zone: Fullscreen Fire TV Button, Admin Panel & Audio Controls */}
+          <div className="flex items-center gap-2 shrink-0">
+            {roomState.settings.useCustomQuestions &&
+              (roomState.settings.customQuestions?.length ?? 0) > 0 && (
+                <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/20 border border-[#FFD600] text-[11px] font-black text-[#FFD600]">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Modo Professor Ativo ({roomState.settings.customQuestions?.length})</span>
+                </span>
               )}
 
-              {/* Mode + Start CTA */}
-              <div className="pt-2 flex flex-wrap items-center justify-between gap-4 border-t border-slate-800">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    data-tv-focusable="true"
-                    onClick={() => onConfigureGame({ mode: 'COMPETITIVE' })}
-                    className={`tv-focusable px-3.5 py-2 rounded-xl text-xs font-extrabold border-2 ${
-                      roomState.settings.mode === 'COMPETITIVE'
-                        ? 'bg-[#007AFF] text-white border-white'
-                        : 'bg-slate-900 text-slate-300 border-slate-700'
-                    }`}
-                  >
-                    Modo Competitivo
-                  </button>
-                  <button
-                    type="button"
-                    data-tv-focusable="true"
-                    onClick={() => onConfigureGame({ mode: 'COOPERATIVE' })}
-                    className={`tv-focusable px-3.5 py-2 rounded-xl text-xs font-extrabold border-2 ${
-                      roomState.settings.mode === 'COOPERATIVE'
-                        ? 'bg-[#22C55E] text-white border-white'
-                        : 'bg-slate-900 text-slate-300 border-slate-700'
-                    }`}
-                  >
-                    Modo Cooperativo
-                  </button>
-                </div>
+            <button
+              type="button"
+              data-tv-focusable="true"
+              onClick={handleToggleFullscreen}
+              title="Ocultar barra do navegador no Fire TV Stick (Tela Cheia)"
+              className="tv-focusable min-h-[38px] px-3 py-1 rounded-xl bg-sky-700 hover:bg-sky-600 border border-white/40 text-xs font-extrabold text-white flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            >
+              {isFullscreen ? (
+                <Minimize2 className="w-4 h-4 text-[#FFD600]" />
+              ) : (
+                <Maximize2 className="w-4 h-4 text-[#FFD600]" />
+              )}
+              <span>{isFullscreen ? 'Sair Tela Cheia' : 'Tela Cheia TV'}</span>
+            </button>
 
+            <button
+              type="button"
+              data-tv-focusable="true"
+              onClick={() => setShowAdminPanel((v) => !v)}
+              className={`tv-focusable min-h-[38px] px-3.5 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+                showAdminPanel
+                  ? 'bg-[#FFD600] text-slate-950 border-2 border-white'
+                  : 'bg-[#A855F7] hover:bg-[#9333EA] text-white border border-white/40'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              <span>Painel Admin</span>
+            </button>
+
+            {(roomState.status === 'QUESTION_ACTIVE' || roomState.status === 'PAUSED') && (
+              <button
+                type="button"
+                data-tv-focusable="true"
+                onClick={onTogglePause}
+                aria-label="Pausar jogo"
+                className="tv-focusable min-h-[38px] min-w-[38px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
+              >
+                {roomState.status === 'PAUSED' ? (
+                  <Play className="w-4 h-4 text-[#FFD600]" />
+                ) : (
+                  <Pause className="w-4 h-4" />
+                )}
+              </button>
+            )}
+
+            <button
+              type="button"
+              data-tv-focusable="true"
+              onClick={handleToggleMute}
+              aria-label={muted ? 'Ativar áudio' : 'Silenciar áudio'}
+              className="tv-focusable min-h-[38px] min-w-[38px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
+            >
+              {muted ? (
+                <VolumeX className="w-4 h-4 text-rose-400" />
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </header>
+
+        {/* MAIN STAGE BODY (No vertical overflow clipping!) */}
+        <main className="relative z-10 flex-1 flex flex-col justify-center px-3 lg:px-6 py-1.5 overflow-hidden">
+          {/* TELA 1: SPLASH / MENU PRINCIPAL */}
+          {roomState.status === 'TITLE_MENU' && (
+            <div className="max-w-4xl w-full mx-auto flex flex-col items-center text-center space-y-2.5">
+              <KidsMathSplashHero />
+
+              <div className="flex flex-wrap items-center justify-center gap-4 pt-0.5">
                 <button
                   type="button"
                   data-tv-focusable="true"
                   data-tv-primary="true"
                   onClick={() => {
-                    soundEngine.playNewQuestion();
-                    onStartGame();
+                    soundEngine.playPlayerJoin();
+                    onSetStatus('LOBBY');
                   }}
-                  className="tv-focusable cube-3d min-h-[56px] px-9 py-3 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-3 border-white text-white font-display font-black text-lg flex items-center gap-2.5 whitespace-nowrap"
+                  className="tv-focusable cube-3d min-h-[56px] px-12 py-2.5 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-4 border-white text-white font-display font-black text-2xl tracking-wide flex items-center gap-3 shadow-2xl transition-transform active:scale-95 whitespace-nowrap"
                 >
                   <Play className="w-6 h-6 fill-current" />
-                  <span>COMEÇAR ATIVIDADE (Enter)</span>
+                  <span>JOGAR</span>
                 </button>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* TELA 3: INTERFACE DE ATIVIDADE (COM ANIMAÇÃO DE PASSAGEM DE TEMPO + EQUAÇÃO CORRIGIDA) */}
-        {(roomState.status === 'QUESTION_ACTIVE' ||
-          roomState.status === 'ROUND_REVEAL' ||
-          roomState.status === 'PAUSED') &&
-          question && (
-            <div className="my-auto max-w-5xl w-full mx-auto flex flex-col justify-between gap-3.5">
-              {/* Top Activity Status + Animated Time Passage Bar */}
-              <div className="rounded-2xl bg-[#0F172A]/95 border-2 border-white/25 px-5 py-3 space-y-2 panel-3d">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 text-sm font-extrabold text-white tabular-nums">
-                    <span className="text-[#FFD600] font-display font-black">
-                      ATIVIDADE {question.roundNumber}/{question.totalRounds}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span>{question.categoryLabel}</span>
-                  </div>
-
-                  {roomState.lastPowerUpAnnouncement && (
-                    <div className="text-xs font-black text-[#FFD600] animate-bounce">
-                      ✨ {roomState.lastPowerUpAnnouncement}
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-[#FFD600]" />
-                    <span className="text-xs font-bold text-sky-200">
-                      {roomState.status === 'ROUND_REVEAL' ? 'Próxima em:' : 'Tempo:'}
-                    </span>
-                    <span
-                      className={`font-mono font-black text-2xl tabular-nums ${
-                        remainingSec <= 5 && roomState.status === 'QUESTION_ACTIVE'
-                          ? 'text-[#EF4444]'
-                          : 'text-[#FFD600]'
-                      }`}
-                    >
-                      {remainingSec}s
-                    </span>
-                  </div>
+              <div className="flex flex-col items-center gap-1">
+                <MgnetSoftwareBadge onOpenParentalGate={() => setShowParentalGate(true)} />
+                <div className="text-[11px] text-sky-200 font-bold tracking-wide">
+                  Setas do Controle Fire TV Navegam · Enter Seleciona · Celular Pareamento via QR Code
                 </div>
-
-                {/* 3D Animated Time Passage Tube */}
-                <div className="w-full h-4 rounded-full bg-slate-950 border-2 border-white/25 overflow-hidden p-0.5 relative">
-                  <div
-                    style={{
-                      width: `${Math.max(3, remainingRatio * 100)}%`,
-                      backgroundColor:
-                        roomState.status === 'ROUND_REVEAL'
-                          ? '#007AFF'
-                          : remainingRatio > 0.5
-                          ? '#22C55E'
-                          : remainingRatio > 0.25
-                          ? '#FFD600'
-                          : '#EF4444',
-                    }}
-                    className="h-full rounded-full time-bar-stripes transition-all duration-75"
-                  />
-                </div>
-              </div>
-
-              {/* Center Visual Question Board with 3D Stacked Blocks & Fixed Equation */}
-              <div className="rounded-3xl bg-[#0F172A]/95 border-3 border-white/30 px-6 py-4 text-center panel-3d space-y-3">
-                <div className="text-base sm:text-xl font-extrabold text-sky-200">
-                  {question.promptText}
-                </div>
-
-                {/* Visual 3D Number Cubes Representation */}
-                {question.visualBlocks && question.visualBlocks.length > 0 && (
-                  <div className="flex flex-wrap items-center justify-center gap-6 py-1">
-                    {question.visualBlocks.map((group, gIdx) => (
-                      <div
-                        key={gIdx}
-                        className="flex flex-col items-center gap-1.5 bg-slate-900/95 px-4 py-2.5 rounded-2xl border-2 border-white/20 shadow-inner"
-                      >
-                        <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-xs">
-                          {Array.from({ length: Math.min(group.count, 10) }).map((_, bIdx) => (
-                            <NumberCube3D
-                              key={bIdx}
-                              number={bIdx + 1}
-                              colorHex={group.colorHex}
-                              size="sm"
-                            />
-                          ))}
-                        </div>
-                        {group.label && (
-                          <span className="text-xs font-black text-white">{group.label}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Fixed 3D Equation Display (No duplicate `= ?` and no extra reveal footer text!) */}
-                <div className="py-1">{renderTvEquation()}</div>
-
-                {/* 3D Visual Hint Animator on TV (Shown when any player misses the same question twice!) */}
-                {roomState.status === 'QUESTION_ACTIVE' &&
-                  roomState.players.some((p) => p.visualHintActive) && (
-                    <div className="pt-1">
-                      <VisualHint3DAnimator question={question} />
-                    </div>
-                  )}
-
-                {/* Button on TV to activate Visual Hint if unlocked */}
-                {roomState.status === 'QUESTION_ACTIVE' &&
-                  !roomState.players.some((p) => p.visualHintActive) &&
-                  roomState.players.some((p) => p.visualHintUnlocked) && (
-                    <div className="pt-1 flex justify-center">
-                      <button
-                        type="button"
-                        data-tv-focusable="true"
-                        onClick={() => onActivateVisualHint?.()}
-                        className="tv-focusable cube-3d px-5 py-2 rounded-2xl bg-[#FFD600] text-slate-950 font-display font-black text-xs sm:text-sm border-2 border-white flex items-center gap-2"
-                      >
-                        <span>💡 Mostrar Dica Visual 3D (Contagem de Blocos)</span>
-                      </button>
-                    </div>
-                  )}
-              </div>
-
-              {/* Bottom Area: 4 Giant 3D Number Cube Answer Buttons */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {ANSWER_OPTIONS_META.map((meta, idx) => {
-                  const val = question.options[meta.index];
-                  const isCorrect = question.correctIndex === meta.index;
-                  const isRevealState = roomState.status === 'ROUND_REVEAL';
-
-                  const choosers = isRevealState
-                    ? roomState.players.filter((p) => p.currentAnswer === meta.index)
-                    : [];
-
-                  const isSingleLocalFailed =
-                    roomState.status === 'QUESTION_ACTIVE' &&
-                    roomState.players.length === 1 &&
-                    Boolean(roomState.players[0]?.failedOptionsOnCurrent?.includes(meta.index));
-
-                  return (
-                    <motion.button
-                      key={meta.letter}
-                      type="button"
-                      data-tv-focusable="true"
-                      data-tv-primary={
-                        idx === 0 && roomState.status === 'QUESTION_ACTIVE' ? 'true' : undefined
-                      }
-                      whileTap={{ scale: 0.95 }}
-                      disabled={roomState.status !== 'QUESTION_ACTIVE' || isSingleLocalFailed}
-                      onClick={() => {
-                        soundEngine.playBuzzerLock(0);
-                        onLocalTvAnswer(meta.index);
-                      }}
-                      style={{
-                        backgroundColor: isRevealState
-                          ? isCorrect
-                            ? '#22C55E'
-                            : '#1E293B'
-                          : isSingleLocalFailed
-                          ? '#334155'
-                          : meta.hexColor,
-                      }}
-                      className={`tv-focusable cube-3d rounded-3xl p-4 flex flex-col justify-between min-h-[116px] border-3 transition-all text-white ${
-                        isRevealState
-                          ? isCorrect
-                            ? 'border-white scale-105 shadow-2xl'
-                            : 'border-slate-700 opacity-50'
-                          : isSingleLocalFailed
-                          ? 'border-rose-400/60 opacity-60'
-                          : 'border-white'
-                      }`}
-                    >
-                      <div className="w-full flex items-center justify-between text-xs font-black">
-                        <span className="bg-black/25 px-2.5 py-0.5 rounded-lg">
-                          {meta.shape} BLOCO {meta.letter}
-                        </span>
-                        {isRevealState && isCorrect && (
-                          <span className="flex items-center gap-1 bg-white text-emerald-700 px-2 py-0.5 rounded-lg">
-                            <Check className="w-3.5 h-3.5" /> CERTO!
-                          </span>
-                        )}
-                        {isSingleLocalFailed && (
-                          <span className="bg-rose-600 text-white px-2 py-0.5 rounded-lg">
-                            ✗ TENTADO
-                          </span>
-                        )}
-                      </div>
-
-                      <div
-                        className={`font-display font-black text-4xl lg:text-5xl tabular-nums my-1 drop-shadow-[0_3px_3px_rgba(0,0,0,0.4)] ${
-                          isSingleLocalFailed ? 'line-through opacity-70' : ''
-                        }`}
-                      >
-                        {val}
-                      </div>
-
-                      <div className="w-full text-[11px] font-extrabold truncate">
-                        {isRevealState
-                          ? choosers.length > 0
-                            ? `Escolhido por: ${choosers.map((c) => c.name).join(', ')}`
-                            : '—'
-                          : isSingleLocalFailed
-                          ? 'Escolha outro bloco!'
-                          : `Toque ${meta.letter} no celular`}
-                      </div>
-                    </motion.button>
-                  );
-                })}
               </div>
             </div>
           )}
 
-        {/* TELA 4: GRANDE FINAL COM CONTADOR AUTOMÁTICO PARA VOLTAR À TELA PRINCIPAL (Fixes Image 2!) */}
-        {roomState.status === 'GAME_OVER' && (
-          <div className="my-auto max-w-4xl w-full mx-auto rounded-3xl bg-[#0F172A]/95 border-4 border-[#FFD600] p-6 text-center space-y-4 panel-3d">
-            {/* Auto-return Countdown Bar */}
-            <div className="space-y-1.5 max-w-md mx-auto">
-              <div className="flex items-center justify-center gap-2 text-xs font-black text-[#FFD600]">
-                <Clock className="w-4 h-4" />
-                <span>
-                  Retornando automaticamente para a Tela Principal em{' '}
-                  <strong className="font-mono text-sm underline">{gameOverLeftSec}s</strong>
-                </span>
+          {/* TELA 2: SELEÇÃO DE MÓDULOS COM DESCRIÇÃO COMPLETA E ILUSTRAÇÕES 3D */}
+          {roomState.status === 'LOBBY' && (
+            <div className="max-w-6xl w-full mx-auto grid grid-cols-12 gap-4 items-stretch">
+              {/* Left Card: Big QR Code & 4-Digit PIN (Always side-by-side on TV!) */}
+              <div className="col-span-4 rounded-3xl bg-[#0F172A]/95 border-3 border-white/25 p-4 flex flex-col justify-between panel-3d">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-[#FFD600] text-xs font-black uppercase">
+                    <QrCode className="w-4 h-4" />
+                    <span>Controle no Celular (1 a 4 Jogadores)</span>
+                  </div>
+                  <h2 className="font-display text-lg font-black text-white leading-snug">
+                    Aponte a câmera do celular para criar seu Avatar 3D!
+                  </h2>
+                </div>
+
+                <div className="my-2 flex flex-col items-center gap-2 bg-[#071936] p-3 rounded-2xl border-2 border-sky-400/40 text-center">
+                  {qrDataUrl && (
+                    <img
+                      src={qrDataUrl}
+                      alt={`QR Code Sala ${roomState.code}`}
+                      referrerPolicy="no-referrer"
+                      className="w-32 h-32 rounded-2xl bg-white p-1.5"
+                    />
+                  )}
+                  <div>
+                    <div className="text-xs font-bold text-sky-200">Código PIN da Sala:</div>
+                    <div className="font-mono font-black text-3xl text-[#FFD600] tracking-widest tabular-nums">
+                      {roomState.code}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  data-tv-focusable="true"
+                  onClick={onSwitchToFullMobile}
+                  className="tv-focusable cube-3d w-full min-h-[42px] rounded-2xl bg-[#007AFF] hover:bg-[#0284C7] border-2 border-white text-xs font-black text-white"
+                >
+                  Abrir Login do Celular Nesta Tela
+                </button>
               </div>
-              <div className="w-full h-2.5 rounded-full bg-slate-900 border border-white/20 overflow-hidden">
-                <div
-                  style={{ width: `${Math.max(3, gameOverRatio * 100)}%` }}
-                  className="h-full bg-[#FFD600] time-bar-stripes transition-all duration-100"
-                />
-              </div>
-            </div>
 
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-3xl bg-[#FFD600]/20 text-[#FFD600] mx-auto">
-              <Trophy className="w-9 h-9" />
-            </div>
+              {/* Right Card: 4 Educational Modules Trail WITH COMPLETE UNTRUNCATED DESCRIPTIONS + 3D ILLUSTRATIONS */}
+              <div className="col-span-8 rounded-3xl bg-[#0F172A]/95 border-3 border-white/25 p-4 flex flex-col justify-between space-y-2.5 panel-3d">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[11px] font-black text-[#22C55E] uppercase">
+                      TRILHA EDUCATIVA 3D · ESCOLHA COM O CONTROLE DA TV OU CELULAR
+                    </div>
+                    <h2 className="font-display text-xl font-black text-white">
+                      Selecione o Módulo de Matemática
+                    </h2>
+                  </div>
 
-            <div className="space-y-1">
-              <h2 className="title-3d-yellow font-display font-black text-3xl sm:text-4xl">
-                Parabéns, Construtores da Matemática!
-              </h2>
-              <p className="text-xs sm:text-sm font-bold text-sky-200">
-                No celular, cada jogador pode escolher continuar ou liberar sua vaga!
-              </p>
-            </div>
+                  <div className="flex items-center gap-1.5">
+                    {(
+                      [
+                        { id: 'EASY', label: 'Fácil' },
+                        { id: 'MEDIUM', label: 'Médio' },
+                        { id: 'HARD', label: 'Mestre' },
+                      ] as { id: DifficultyLevel; label: string }[]
+                    ).map((lvl) => (
+                      <button
+                        key={lvl.id}
+                        type="button"
+                        data-tv-focusable="true"
+                        onClick={() => onConfigureGame({ difficulty: lvl.id })}
+                        className={`tv-focusable min-h-[36px] px-3 py-1 rounded-xl font-display font-black text-xs border-2 transition-colors ${
+                          roomState.settings.difficulty === lvl.id
+                            ? 'bg-[#FFD600] text-slate-950 border-white'
+                            : 'bg-slate-900 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        {lvl.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {roomState.lastPowerUpAnnouncement && (
-              <div className="inline-block px-4 py-1.5 rounded-xl bg-sky-950 border border-[#FFD600] text-xs font-black text-[#FFD600]">
-                🔄 {roomState.lastPowerUpAnnouncement}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-left">
-              {[...roomState.players]
-                .sort((a, b) => b.score - a.score)
-                .map((p, idx) => {
-                  const playerMedals =
-                    p.medals && p.medals.length > 0
-                      ? p.medals
-                      : evaluatePlayerMedals(p, roomState.settings.totalRounds);
-                  return (
-                    <div
-                      key={p.id}
-                      className={`p-3.5 rounded-2xl border-2 ${
-                        idx === 0
-                          ? 'bg-[#007AFF]/30 border-[#FFD600]'
-                          : 'bg-slate-900 border-slate-700'
-                      } space-y-2.5 flex flex-col justify-between`}
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-display font-black text-sm text-[#FFD600]">
-                            #{idx + 1} · ⭐ {p.stars} Estrelas
+                {/* 4 Educational Modules Grid — Complete descriptions without truncation! */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {LEARNING_MODULES.map((mod) => {
+                    const isSelected = roomState.settings.moduleId === mod.id;
+                    return (
+                      <button
+                        key={mod.id}
+                        type="button"
+                        data-tv-focusable="true"
+                        onClick={() => {
+                          soundEngine.playTick();
+                          onConfigureGame({ moduleId: mod.id });
+                        }}
+                        style={{
+                          backgroundColor: isSelected ? mod.bgColor : '#1E293B',
+                        }}
+                        className={`tv-focusable cube-3d p-3 rounded-2xl border-3 text-left flex flex-col justify-between gap-1.5 transition-all ${
+                          isSelected
+                            ? 'border-white scale-[1.01]'
+                            : 'border-slate-700 hover:border-slate-500 opacity-95'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <span className="px-2.5 py-0.5 rounded-lg bg-black/30 text-[11px] font-black uppercase text-[#FFD600]">
+                            {mod.numberLabel}
                           </span>
-                          {idx === 0 && <Crown className="w-4 h-4 text-[#FFD600]" />}
-                        </div>
-                        <div className="flex items-center gap-2.5">
-                          <AvatarIcon avatarId={p.avatarId} className="w-11 h-11 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="font-display font-black text-base text-white truncate">
-                              {p.name}
-                            </div>
-                            <div className="font-mono font-black text-lg text-[#22C55E] tabular-nums">
-                              {p.score} pts
-                            </div>
-                          </div>
+                          <Module3DIllustration moduleId={mod.id} />
                         </div>
 
-                        {/* 3D Animated Achievement Medals Earned by Player */}
-                        <div className="pt-1.5 border-t border-white/10 space-y-1.5">
-                          <div className="flex items-center gap-1 text-[10px] font-black uppercase text-[#FFD600]">
-                            <Award className="w-3.5 h-3.5" />
-                            <span>Medalhas 3D Conquistadas:</span>
+                        <div className="space-y-0.5">
+                          <div className="font-display font-black text-base lg:text-lg text-white leading-snug">
+                            {mod.title}
                           </div>
-                          <div className="flex flex-col gap-1.5">
-                            {playerMedals.map((mId, mIdx) => (
-                              <Medal3DBadge
-                                key={mId}
-                                medalId={mId}
+                          <div className="text-xs font-bold text-white/95 leading-snug">
+                            {mod.subtitle}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 1-PLAYER ONLY: OPTION TO COMPETE AGAINST THE MACHINE */}
+                {roomState.players.filter((p) => !p.isBot).length <= 1 && (
+                  <div className="rounded-2xl bg-[#071936] border-2 border-[#A855F7]/70 px-3.5 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-[#A855F7]/25 border border-[#A855F7] flex items-center justify-center text-[#FFD600] shrink-0">
+                          <Bot className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="font-display font-black text-sm text-white flex items-center gap-2">
+                            <span>🤖 Modo 1 Jogador: Disputar contra a Máquina</span>
+                            {roomState.settings.vsMachine && (
+                              <span className="px-2 py-0.5 rounded-full bg-[#22C55E] text-white text-[10px] font-black uppercase">
+                                Ativo
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-semibold text-sky-200">
+                            Exclusivo para 1 jogador: desafie o Robô da Matemática em tempo real!
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        data-tv-focusable="true"
+                        onClick={() => {
+                          soundEngine.playTick();
+                          onConfigureGame({
+                            vsMachine: !roomState.settings.vsMachine,
+                            botAccuracyMode: 'RANDOM',
+                          });
+                        }}
+                        className={`tv-focusable cube-3d min-h-[38px] px-4 py-1.5 rounded-xl font-display font-black text-xs border-2 transition-all whitespace-nowrap ${
+                          roomState.settings.vsMachine
+                            ? 'bg-[#A855F7] text-white border-white'
+                            : 'bg-slate-900 text-slate-200 border-slate-600 hover:border-white'
+                        }`}
+                      >
+                        {roomState.settings.vsMachine
+                          ? '✓ Disputando contra a Máquina'
+                          : '🤖 Disputar contra a Máquina'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mode + Start CTA */}
+                <div className="pt-1.5 flex items-center justify-between gap-3 border-t border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      data-tv-focusable="true"
+                      onClick={() => onConfigureGame({ mode: 'COMPETITIVE' })}
+                      className={`tv-focusable px-3.5 py-1.5 rounded-xl text-xs font-extrabold border-2 ${
+                        roomState.settings.mode === 'COMPETITIVE'
+                          ? 'bg-[#007AFF] text-white border-white'
+                          : 'bg-slate-900 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      Modo Competitivo
+                    </button>
+                    <button
+                      type="button"
+                      data-tv-focusable="true"
+                      onClick={() => onConfigureGame({ mode: 'COOPERATIVE' })}
+                      className={`tv-focusable px-3.5 py-1.5 rounded-xl text-xs font-extrabold border-2 ${
+                        roomState.settings.mode === 'COOPERATIVE'
+                          ? 'bg-[#22C55E] text-white border-white'
+                          : 'bg-slate-900 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      Modo Cooperativo
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    data-tv-focusable="true"
+                    data-tv-primary="true"
+                    onClick={() => {
+                      soundEngine.playNewQuestion();
+                      onStartGame();
+                    }}
+                    className="tv-focusable cube-3d min-h-[48px] px-8 py-2 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-3 border-white text-white font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <Play className="w-5 h-5 fill-current" />
+                    <span>COMEÇAR ATIVIDADE (Enter)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TELA 3: INTERFACE DE ATIVIDADE (COM ANIMAÇÃO DE PASSAGEM DE TEMPO + EQUAÇÃO CORRIGIDA) */}
+          {(roomState.status === 'QUESTION_ACTIVE' ||
+            roomState.status === 'ROUND_REVEAL' ||
+            roomState.status === 'PAUSED') &&
+            question && (
+              <div className="max-w-5xl w-full mx-auto flex flex-col justify-between gap-2.5">
+                {/* Top Activity Status + Animated Time Passage Bar */}
+                <div className="rounded-2xl bg-[#0F172A]/95 border-2 border-white/25 px-5 py-2 space-y-1.5 panel-3d">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 text-sm font-extrabold text-white tabular-nums">
+                      <span className="text-[#FFD600] font-display font-black">
+                        ATIVIDADE {question.roundNumber}/{question.totalRounds}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span>{question.categoryLabel}</span>
+                    </div>
+
+                    {roomState.lastPowerUpAnnouncement && (
+                      <div className="text-xs font-black text-[#FFD600] animate-bounce">
+                        ✨ {roomState.lastPowerUpAnnouncement}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-[#FFD600]" />
+                      <span className="text-xs font-bold text-sky-200">
+                        {roomState.status === 'ROUND_REVEAL' ? 'Próxima em:' : 'Tempo:'}
+                      </span>
+                      <span
+                        className={`font-mono font-black text-xl tabular-nums ${
+                          remainingSec <= 5 && roomState.status === 'QUESTION_ACTIVE'
+                            ? 'text-[#EF4444]'
+                            : 'text-[#FFD600]'
+                        }`}
+                      >
+                        {remainingSec}s
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 3D Animated Time Passage Tube */}
+                  <div className="w-full h-3.5 rounded-full bg-slate-950 border-2 border-white/25 overflow-hidden p-0.5 relative">
+                    <div
+                      style={{
+                        width: `${Math.max(3, remainingRatio * 100)}%`,
+                        backgroundColor:
+                          roomState.status === 'ROUND_REVEAL'
+                            ? '#007AFF'
+                            : remainingRatio > 0.5
+                            ? '#22C55E'
+                            : remainingRatio > 0.25
+                            ? '#FFD600'
+                            : '#EF4444',
+                      }}
+                      className="h-full rounded-full time-bar-stripes transition-all duration-75"
+                    />
+                  </div>
+                </div>
+
+                {/* Center Visual Question Board with 3D Stacked Blocks & Fixed Equation */}
+                <div className="rounded-3xl bg-[#0F172A]/95 border-3 border-white/30 px-5 py-3 text-center panel-3d space-y-2">
+                  <div className="text-base sm:text-lg font-extrabold text-sky-200">
+                    {question.promptText}
+                  </div>
+
+                  {/* Visual 3D Number Cubes Representation */}
+                  {question.visualBlocks && question.visualBlocks.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-center gap-4 py-0.5">
+                      {question.visualBlocks.map((group, gIdx) => (
+                        <div
+                          key={gIdx}
+                          className="flex flex-col items-center gap-1 bg-slate-900/95 px-3.5 py-2 rounded-2xl border-2 border-white/20 shadow-inner"
+                        >
+                          <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-xs">
+                            {Array.from({ length: Math.min(group.count, 10) }).map((_, bIdx) => (
+                              <NumberCube3D
+                                key={bIdx}
+                                number={bIdx + 1}
+                                colorHex={group.colorHex}
                                 size="sm"
-                                delay={idx * 0.12 + mIdx * 0.15}
-                                onClick={() => {
-                                  soundEngine.playMedalFanfare();
-                                  onCelebrateMedals?.();
-                                }}
                               />
                             ))}
                           </div>
+                          {group.label && (
+                            <span className="text-xs font-black text-white">{group.label}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Fixed 3D Equation Display */}
+                  <div className="py-0.5">{renderTvEquation()}</div>
+
+                  {/* 3D Visual Hint Animator on TV */}
+                  {roomState.status === 'QUESTION_ACTIVE' &&
+                    roomState.players.some((p) => p.visualHintActive) && (
+                      <div className="pt-0.5">
+                        <VisualHint3DAnimator question={question} />
+                      </div>
+                    )}
+
+                  {/* Button on TV to activate Visual Hint if unlocked */}
+                  {roomState.status === 'QUESTION_ACTIVE' &&
+                    !roomState.players.some((p) => p.visualHintActive) &&
+                    roomState.players.some((p) => p.visualHintUnlocked) && (
+                      <div className="pt-0.5 flex justify-center">
+                        <button
+                          type="button"
+                          data-tv-focusable="true"
+                          onClick={() => onActivateVisualHint?.()}
+                          className="tv-focusable cube-3d px-4 py-1.5 rounded-2xl bg-[#FFD600] text-slate-950 font-display font-black text-xs border-2 border-white flex items-center gap-2"
+                        >
+                          <span>💡 Mostrar Dica Visual 3D (Contagem de Blocos)</span>
+                        </button>
+                      </div>
+                    )}
+                </div>
+
+                {/* Bottom Area: 4 Giant 3D Number Cube Answer Buttons */}
+                <div className="grid grid-cols-4 gap-3.5">
+                  {ANSWER_OPTIONS_META.map((meta, idx) => {
+                    const val = question.options[meta.index];
+                    const isCorrect = question.correctIndex === meta.index;
+                    const isRevealState = roomState.status === 'ROUND_REVEAL';
+
+                    const choosers = isRevealState
+                      ? roomState.players.filter((p) => p.currentAnswer === meta.index)
+                      : [];
+
+                    const isSingleLocalFailed =
+                      roomState.status === 'QUESTION_ACTIVE' &&
+                      roomState.players.length === 1 &&
+                      Boolean(roomState.players[0]?.failedOptionsOnCurrent?.includes(meta.index));
+
+                    return (
+                      <motion.button
+                        key={meta.letter}
+                        type="button"
+                        data-tv-focusable="true"
+                        data-tv-primary={
+                          idx === 0 && roomState.status === 'QUESTION_ACTIVE' ? 'true' : undefined
+                        }
+                        whileTap={{ scale: 0.95 }}
+                        disabled={roomState.status !== 'QUESTION_ACTIVE' || isSingleLocalFailed}
+                        onClick={() => {
+                          soundEngine.playBuzzerLock(0);
+                          onLocalTvAnswer(meta.index);
+                        }}
+                        style={{
+                          backgroundColor: isRevealState
+                            ? isCorrect
+                              ? '#22C55E'
+                              : '#1E293B'
+                            : isSingleLocalFailed
+                            ? '#334155'
+                            : meta.hexColor,
+                        }}
+                        className={`tv-focusable cube-3d rounded-3xl p-3 flex flex-col justify-between min-h-[96px] border-3 transition-all text-white ${
+                          isRevealState
+                            ? isCorrect
+                              ? 'border-white scale-105 shadow-2xl'
+                              : 'border-slate-700 opacity-50'
+                            : isSingleLocalFailed
+                            ? 'border-rose-400/60 opacity-60'
+                            : 'border-white'
+                        }`}
+                      >
+                        <div className="w-full flex items-center justify-between text-xs font-black">
+                          <span className="bg-black/25 px-2.5 py-0.5 rounded-lg">
+                            {meta.shape} BLOCO {meta.letter}
+                          </span>
+                          {isRevealState && isCorrect && (
+                            <span className="flex items-center gap-1 bg-white text-emerald-700 px-2 py-0.5 rounded-lg">
+                              <Check className="w-3.5 h-3.5" /> CERTO!
+                            </span>
+                          )}
+                          {isSingleLocalFailed && (
+                            <span className="bg-rose-600 text-white px-2 py-0.5 rounded-lg">
+                              ✗ TENTADO
+                            </span>
+                          )}
+                        </div>
+
+                        <div
+                          className={`font-display font-black text-3xl lg:text-4xl tabular-nums my-0.5 drop-shadow-[0_3px_3px_rgba(0,0,0,0.4)] ${
+                            isSingleLocalFailed ? 'line-through opacity-70' : ''
+                          }`}
+                        >
+                          {val}
+                        </div>
+
+                        <div className="w-full text-[11px] font-extrabold truncate">
+                          {isRevealState
+                            ? choosers.length > 0
+                              ? `Escolhido por: ${choosers.map((c) => c.name).join(', ')}`
+                              : '—'
+                            : isSingleLocalFailed
+                            ? 'Escolha outro bloco!'
+                            : `Toque ${meta.letter} no celular`}
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+          {/* TELA 4: GRANDE FINAL COM CONTADOR AUTOMÁTICO PARA VOLTAR À TELA PRINCIPAL */}
+          {roomState.status === 'GAME_OVER' && (
+            <div className="max-w-5xl w-full mx-auto rounded-3xl bg-[#0F172A]/95 border-4 border-[#FFD600] p-4 text-center space-y-2.5 panel-3d">
+              {/* Auto-return Countdown Bar */}
+              <div className="space-y-1 max-w-md mx-auto">
+                <div className="flex items-center justify-center gap-2 text-xs font-black text-[#FFD600]">
+                  <Clock className="w-4 h-4" />
+                  <span>
+                    Retornando automaticamente para a Tela Principal em{' '}
+                    <strong className="font-mono text-sm underline">{gameOverLeftSec}s</strong>
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-900 border border-white/20 overflow-hidden">
+                  <div
+                    style={{ width: `${Math.max(3, gameOverRatio * 100)}%` }}
+                    className="h-full bg-[#FFD600] time-bar-stripes transition-all duration-100"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3">
+                <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-[#FFD600]/20 text-[#FFD600]">
+                  <Trophy className="w-7 h-7" />
+                </div>
+                <div className="text-left">
+                  <h2 className="title-3d-yellow font-display font-black text-2xl sm:text-3xl leading-tight">
+                    Parabéns, Construtores da Matemática!
+                  </h2>
+                  <p className="text-xs font-bold text-sky-200">
+                    No celular, cada jogador pode escolher continuar ou liberar sua vaga!
+                  </p>
+                </div>
+              </div>
+
+              {roomState.lastPowerUpAnnouncement && (
+                <div className="inline-block px-3.5 py-1 rounded-xl bg-sky-950 border border-[#FFD600] text-xs font-black text-[#FFD600]">
+                  🔄 {roomState.lastPowerUpAnnouncement}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-left">
+                {[...roomState.players]
+                  .sort((a, b) => b.score - a.score)
+                  .map((p, idx) => {
+                    const playerMedals =
+                      p.medals && p.medals.length > 0
+                        ? p.medals
+                        : evaluatePlayerMedals(p, roomState.settings.totalRounds);
+                    return (
+                      <div
+                        key={p.id}
+                        className={`p-3 rounded-2xl border-2 ${
+                          idx === 0
+                            ? 'bg-[#007AFF]/30 border-[#FFD600]'
+                            : 'bg-slate-900 border-slate-700'
+                        } space-y-2 flex flex-col justify-between`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-display font-black text-xs text-[#FFD600]">
+                              #{idx + 1} · ⭐ {p.stars} Estrelas
+                            </span>
+                            {idx === 0 && <Crown className="w-4 h-4 text-[#FFD600]" />}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <AvatarIcon avatarId={p.avatarId} className="w-10 h-10 shrink-0" />
+                            <div className="min-w-0">
+                              <div className="font-display font-black text-sm text-white truncate">
+                                {p.name}
+                              </div>
+                              <div className="font-mono font-black text-base text-[#22C55E] tabular-nums">
+                                {p.score} pts
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 3D Animated Achievement Medals Earned by Player */}
+                          <div className="pt-1 border-t border-white/10 space-y-1">
+                            <div className="flex items-center gap-1 text-[10px] font-black uppercase text-[#FFD600]">
+                              <Award className="w-3 h-3" />
+                              <span>Medalhas 3D Conquistadas:</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              {playerMedals.slice(0, 2).map((mId, mIdx) => (
+                                <Medal3DBadge
+                                  key={mId}
+                                  medalId={mId}
+                                  size="sm"
+                                  delay={idx * 0.12 + mIdx * 0.15}
+                                  onClick={() => {
+                                    soundEngine.playMedalFanfare();
+                                    onCelebrateMedals?.();
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] font-bold text-sky-200 pt-1 border-t border-white/10 tabular-nums">
+                          <span>
+                            Acertos: {p.correctCount}/{roomState.settings.totalRounds} (
+                            {Math.round(
+                              (p.correctCount / Math.max(1, roomState.settings.totalRounds)) * 100
+                            )}
+                            %)
+                          </span>
+                          {p.isBot ? (
+                            <span className="text-[#A855F7] font-black">🤖 Máquina 3D</span>
+                          ) : (
+                            p.continueChoice === 'YES' && (
+                              <span className="text-emerald-400 font-black">✓ Continua</span>
+                            )
+                          )}
                         </div>
                       </div>
+                    );
+                  })}
+              </div>
 
-                      <div className="flex items-center justify-between text-[11px] font-bold text-sky-200 pt-1 border-t border-white/10 tabular-nums">
-                        <span>
-                          Acertos: {p.correctCount}/{roomState.settings.totalRounds} (
-                          {Math.round(
-                            (p.correctCount / Math.max(1, roomState.settings.totalRounds)) * 100
-                          )}
-                          %)
-                        </span>
-                        {p.isBot ? (
-                          <span className="text-[#A855F7] font-black">
-                            🤖 Máquina 3D
-                          </span>
-                        ) : (
-                          p.continueChoice === 'YES' && (
-                            <span className="text-emerald-400 font-black">✓ Continua</span>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="pt-1 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  data-tv-focusable="true"
+                  data-tv-primary="true"
+                  onClick={onRestartGame}
+                  className="tv-focusable cube-3d min-h-[46px] px-6 py-2 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-3 border-white text-white font-display font-black text-sm flex items-center gap-2 whitespace-nowrap"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>JOGAR NOVAMENTE (Enter)</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-tv-focusable="true"
+                  onClick={() => {
+                    soundEngine.playMedalFanfare();
+                    onCelebrateMedals?.();
+                  }}
+                  className="tv-focusable cube-3d min-h-[46px] px-5 py-2 rounded-full bg-[#FFD600] hover:bg-[#FACC15] border-3 border-white text-slate-950 font-display font-black text-sm flex items-center gap-2 whitespace-nowrap"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Celebrar Medalhas 3D &amp; Confete!</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-tv-focusable="true"
+                  onClick={() => onSetStatus('TITLE_MENU')}
+                  className="tv-focusable cube-3d min-h-[46px] px-5 py-2 rounded-full bg-[#007AFF] hover:bg-[#0284C7] border-3 border-white text-white font-display font-black text-sm flex items-center gap-2 whitespace-nowrap"
+                >
+                  <Home className="w-4 h-4" />
+                  <span>Voltar à Tela Principal</span>
+                </button>
+              </div>
             </div>
+          )}
+        </main>
 
-            <div className="pt-1 flex flex-wrap items-center justify-center gap-3.5">
-              <button
-                type="button"
-                data-tv-focusable="true"
-                data-tv-primary="true"
-                onClick={onRestartGame}
-                className="tv-focusable cube-3d min-h-[54px] px-7 py-2.5 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-3 border-white text-white font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
-              >
-                <RotateCcw className="w-5 h-5" />
-                <span>JOGAR NOVAMENTE (Enter)</span>
-              </button>
-
-              <button
-                type="button"
-                data-tv-focusable="true"
-                onClick={() => {
-                  soundEngine.playMedalFanfare();
-                  onCelebrateMedals?.();
-                }}
-                className="tv-focusable cube-3d min-h-[54px] px-6 py-2.5 rounded-full bg-[#FFD600] hover:bg-[#FACC15] border-3 border-white text-slate-950 font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
-              >
-                <Sparkles className="w-5 h-5" />
-                <span>Celebrar Medalhas 3D &amp; Confete!</span>
-              </button>
-
-              <button
-                type="button"
-                data-tv-focusable="true"
-                onClick={() => onSetStatus('TITLE_MENU')}
-                className="tv-focusable cube-3d min-h-[54px] px-6 py-2.5 rounded-full bg-[#007AFF] hover:bg-[#0284C7] border-3 border-white text-white font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
-              >
-                <Home className="w-5 h-5" />
-                <span>Voltar à Tela Principal</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* PEDESTAIS DOS 4 JOGADORES NA MESA DE MADEIRA */}
-        <section aria-label="Jogadores Conectados" className="grid grid-cols-4 gap-3.5 pt-1">
+        {/* PEDESTAIS DOS 4 JOGADORES NA MESA DE MADEIRA (Fixed at bottom of scaled stage) */}
+        <section
+          aria-label="Jogadores Conectados"
+          className="relative z-10 grid grid-cols-4 gap-3 px-3 lg:px-6 pb-1 shrink-0"
+        >
           {[0, 1, 2, 3].map((slotIdx) => {
             const player = roomState.players.find((p) => p.slotIndex === slotIdx);
             const fallbackAvatar = PLAYER_AVATARS[slotIdx];
@@ -1167,7 +1260,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               return (
                 <div
                   key={slotIdx}
-                  className="rounded-2xl bg-[#0F172A]/85 border-2 border-dashed border-white/25 p-2.5 flex items-center justify-between text-sky-200"
+                  className="rounded-2xl bg-[#0F172A]/85 border-2 border-dashed border-white/25 px-3 py-2 flex items-center justify-between text-sky-200"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <NumberCube3D
@@ -1206,7 +1299,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
             return (
               <div
                 key={player.id}
-                className={`rounded-2xl p-2.5 border-2 transition-all flex items-center justify-between gap-2 ${
+                className={`rounded-2xl px-3 py-2 border-2 transition-all flex items-center justify-between gap-2 ${
                   isReveal
                     ? isRight
                       ? 'bg-[#16A34A] border-white shadow-lg'
@@ -1216,10 +1309,10 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                     : 'bg-[#0F172A]/95 border-white/30'
                 }`}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
                   <AvatarIcon
                     avatarId={player.avatarId || fallbackAvatar.id}
-                    className="w-11 h-11 shrink-0"
+                    className="w-10 h-10 shrink-0"
                   />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1">
@@ -1228,7 +1321,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                       </span>
                       <span className="text-xs font-bold text-[#FFD600]">⭐{player.stars}</span>
                     </div>
-                    <div className="text-xs font-extrabold text-sky-100 tabular-nums">
+                    <div className="text-[11px] font-extrabold text-sky-100 tabular-nums">
                       {isReveal ? (
                         isRight ? (
                           <span className="text-[#FFD600]">+{player.lastPointsEarned} pts!</span>
@@ -1256,7 +1349,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                     data-tv-focusable="true"
                     onClick={() => onAdminKickPlayer(player.id)}
                     title={`Fazer Logoff de ${player.name}`}
-                    className="tv-focusable p-2 rounded-xl bg-red-600/90 hover:bg-red-500 border border-white/50 text-white transition-transform active:scale-95"
+                    className="tv-focusable p-1.5 rounded-xl bg-red-600/90 hover:bg-red-500 border border-white/50 text-white transition-transform active:scale-95"
                   >
                     <LogOut className="w-4 h-4" />
                   </button>
@@ -1265,7 +1358,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
             );
           })}
         </section>
-      </main>
+      </div>
 
       {/* TELA ADMINISTRATIVA — CONTROLE DOS 4 JOGADORES + MODO PROFESSOR + RELATÓRIO PEDAGÓGICO */}
       {showAdminPanel && (

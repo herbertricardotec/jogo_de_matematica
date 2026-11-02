@@ -980,93 +980,93 @@ export const KidsMathSplashHero: React.FC<{ className?: string }> = ({
 }) => (
   <div className={`relative flex flex-col items-center select-none ${className}`}>
     {/* Top Balloon Title Banner ("JOGO DE MATEMÁTICA") — 100% Unobstructed & Prominent */}
-    <div className="relative z-10 w-full max-w-2xl px-6 sm:px-10 py-4 sm:py-5 rounded-[32px] bg-gradient-to-b from-[#007AFF] via-[#0284C7] to-[#0369A1] border-4 border-white shadow-[0_8px_0_#075985,0_16px_32px_rgba(0,0,0,0.5)] flex items-center justify-between gap-4">
+    <div className="relative z-10 w-full max-w-2xl px-6 sm:px-8 py-3 sm:py-3.5 rounded-[28px] bg-gradient-to-b from-[#007AFF] via-[#0284C7] to-[#0369A1] border-4 border-white shadow-[0_6px_0_#075985,0_12px_24px_rgba(0,0,0,0.5)] flex items-center justify-between gap-4">
       {/* Left Pair of 3D Operator Blocks (+ and ×) */}
-      <div className="hidden sm:flex flex-col items-center gap-2.5 shrink-0" aria-hidden="true">
-        <div className="w-12 h-12 rounded-2xl bg-[#22C55E] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-2xl text-white -rotate-6">
+      <div className="hidden sm:flex flex-col items-center gap-2 shrink-0" aria-hidden="true">
+        <div className="w-11 h-11 rounded-2xl bg-[#22C55E] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-xl text-white -rotate-6">
           +
         </div>
-        <div className="w-12 h-12 rounded-2xl bg-[#A855F7] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-2xl text-white rotate-6">
+        <div className="w-11 h-11 rounded-2xl bg-[#A855F7] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-xl text-white rotate-6">
           ×
         </div>
       </div>
 
       {/* Center 3D Extruded Game Title — Clearly Visible! */}
       <div className="flex flex-col items-center text-center mx-auto">
-        <span className="inline-block px-4 py-0.5 rounded-full bg-slate-950/35 border border-white/30 title-3d-white font-display font-black text-xl sm:text-2xl lg:text-3xl tracking-widest uppercase leading-tight">
+        <span className="inline-block px-3.5 py-0.5 rounded-full bg-slate-950/35 border border-white/30 title-3d-white font-display font-black text-lg sm:text-xl lg:text-2xl tracking-widest uppercase leading-tight">
           JOGO DE
         </span>
-        <h1 className="mt-1 title-3d-yellow font-display font-black text-4xl sm:text-6xl lg:text-7xl tracking-tight leading-none drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)]">
+        <h1 className="mt-0.5 title-3d-yellow font-display font-black text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)]">
           Matemática
         </h1>
       </div>
 
       {/* Right Pair of 3D Operator Blocks (− and ÷) */}
-      <div className="hidden sm:flex flex-col items-center gap-2.5 shrink-0" aria-hidden="true">
-        <div className="w-12 h-12 rounded-2xl bg-[#F97316] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-2xl text-white rotate-6">
+      <div className="hidden sm:flex flex-col items-center gap-2 shrink-0" aria-hidden="true">
+        <div className="w-11 h-11 rounded-2xl bg-[#F97316] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-xl text-white rotate-6">
           −
         </div>
-        <div className="w-12 h-12 rounded-2xl bg-[#EC4899] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-2xl text-white -rotate-6">
+        <div className="w-11 h-11 rounded-2xl bg-[#EC4899] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-xl text-white -rotate-6">
           ÷
         </div>
       </div>
     </div>
 
     {/* 3D Scene: Kids & Teens 3D Avatars Building the Tower of Number Blocks (1, 2, 3, 4, 5) */}
-    <div className="mt-3.5 w-full max-w-2xl rounded-3xl bg-gradient-to-b from-[#0F172A]/90 to-[#1E293B]/95 border-3 border-white/30 px-6 pt-4 pb-4 panel-3d flex items-end justify-around gap-4 relative overflow-hidden">
+    <div className="mt-2.5 w-full max-w-2xl rounded-3xl bg-gradient-to-b from-[#0F172A]/90 to-[#1E293B]/95 border-3 border-white/30 px-5 pt-3 pb-3 panel-3d flex items-end justify-around gap-3 relative overflow-hidden">
       {/* Left Character: Léo (Infantil Masculino) & Lucas (Adolescente Masculino) */}
       <div className="flex items-end gap-2.5 z-10">
         <div className="flex flex-col items-center">
           <AvatarIcon
             avatarId="leo_infantil_m|#F97316|none"
-            className="w-18 h-18 sm:w-22 sm:h-22 drop-shadow-xl"
+            className="w-16 h-16 sm:w-18 sm:h-18 drop-shadow-xl"
           />
-          <span className="mt-1 text-xs font-extrabold text-sky-200">Léo</span>
+          <span className="mt-0.5 text-xs font-extrabold text-sky-200">Léo</span>
         </div>
-        <div className="hidden md:flex flex-col items-center">
+        <div className="hidden sm:flex flex-col items-center">
           <AvatarIcon
             avatarId="lucas_teen_m|#0284C7|glasses"
-            className="w-15 h-15 drop-shadow-lg"
+            className="w-14 h-14 drop-shadow-lg"
           />
-          <span className="mt-1 text-[11px] font-bold text-sky-300">Lucas</span>
+          <span className="mt-0.5 text-[11px] font-bold text-sky-300">Lucas</span>
         </div>
       </div>
 
       {/* Center Interactive 3D Block Tower (1, 2, 3, 4, 5) */}
-      <div className="flex flex-col items-center gap-1.5 z-10 pb-1">
-        <div className="flex items-center gap-1.5">
+      <div className="flex flex-col items-center gap-1 z-10 pb-0.5">
+        <div className="flex items-center gap-1">
           <NumberCube3D number={5} colorHex="#A855F7" size="sm" className="-rotate-3" />
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <NumberCube3D number={3} colorHex="#EF4444" size="sm" />
           <NumberCube3D number={4} colorHex="#22C55E" size="sm" className="rotate-2" />
         </div>
-        <div className="flex items-center gap-1.5">
-          <NumberCube3D number={1} colorHex="#007AFF" size="md" />
-          <NumberCube3D number={2} colorHex="#FFD600" size="md" />
+        <div className="flex items-center gap-1">
+          <NumberCube3D number={1} colorHex="#007AFF" size="sm" />
+          <NumberCube3D number={2} colorHex="#FFD600" size="sm" />
         </div>
       </div>
 
       {/* Right Character: Bia (Infantil Feminino) & Maya (Adolescente Feminino) */}
       <div className="flex items-end gap-2.5 z-10">
-        <div className="hidden md:flex flex-col items-center">
+        <div className="hidden sm:flex flex-col items-center">
           <AvatarIcon
             avatarId="maya_teen_f|#007AFF|glasses"
-            className="w-15 h-15 drop-shadow-lg"
+            className="w-14 h-14 drop-shadow-lg"
           />
-          <span className="mt-1 text-[11px] font-bold text-pink-300">Maya</span>
+          <span className="mt-0.5 text-[11px] font-bold text-pink-300">Maya</span>
         </div>
         <div className="flex flex-col items-center">
           <AvatarIcon
             avatarId="bia_infantil_f|#EC4899|none"
-            className="w-18 h-18 sm:w-22 sm:h-22 drop-shadow-xl"
+            className="w-16 h-16 sm:w-18 sm:h-18 drop-shadow-xl"
           />
-          <span className="mt-1 text-xs font-extrabold text-pink-200">Bia</span>
+          <span className="mt-0.5 text-xs font-extrabold text-pink-200">Bia</span>
         </div>
       </div>
 
       {/* Warm Wooden Table Base Strip */}
-      <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-r from-[#B45309] via-[#EAB308] to-[#B45309]" />
+      <div className="absolute bottom-0 left-0 right-0 h-2.5 bg-gradient-to-r from-[#B45309] via-[#EAB308] to-[#B45309]" />
     </div>
   </div>
 );
