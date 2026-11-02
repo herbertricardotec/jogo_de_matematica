@@ -22,6 +22,7 @@ import {
   MgnetSoftwareBadge,
   Module3DIllustration,
   NumberCube3D,
+  VisualHint3DAnimator,
 } from './AvatarIcon.tsx';
 import {
   Award,
@@ -29,6 +30,7 @@ import {
   Clock,
   Crown,
   Dices,
+  Lightbulb,
   LogOut,
   Play,
   RotateCcw,
@@ -46,6 +48,7 @@ interface MobileControllerViewProps {
   onJoinRoom: (code: string, name: string, avatarId: string) => void;
   onSelectAnswer: (optionIndex: number) => void;
   onUsePowerUp: (powerUp: PowerUpType) => void;
+  onActivateVisualHint?: () => void;
   onContinueDecision: (continueGame: boolean) => void;
   onConfigureGame: (config: {
     mode?: GameMode;
@@ -68,6 +71,7 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
   onJoinRoom,
   onSelectAnswer,
   onUsePowerUp,
+  onActivateVisualHint,
   onContinueDecision,
   onConfigureGame,
   onStartGame,
@@ -590,23 +594,64 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
               <div className="font-display font-black text-3xl text-white tracking-tight tabular-nums">
                 {renderPhoneEquation()}
               </div>
+
+              {/* 1st Wrong Attempt Notice */}
+              {(myPlayer.wrongAttemptsOnCurrent || 0) === 1 && !myPlayer.visualHintActive && (
+                <div className="mt-1 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-[#FFD600] text-xs font-extrabold text-[#FFD600]">
+                  ⚠️ Ops, quase lá! Tente outro bloco (se errar mais 1 vez, a Dica Visual 3D será ativada!).
+                </div>
+              )}
+
+              {/* Button to Activate Visual Hint 3D if unlocked */}
+              {myPlayer.visualHintUnlocked && !myPlayer.visualHintActive && (
+                <button
+                  type="button"
+                  onClick={() => onActivateVisualHint?.()}
+                  className="cube-3d w-full mt-1 py-2 px-3 rounded-xl bg-[#FFD600] text-slate-950 font-display font-black text-xs flex items-center justify-center gap-1.5 border-2 border-white animate-pulse"
+                >
+                  <Lightbulb className="w-4 h-4" />
+                  <span>💡 Ativar Dica Visual 3D (Contar Blocos)</span>
+                </button>
+              )}
             </div>
+
+            {/* 3D VISUAL HINT ANIMATION (Automatically shown after 2 wrong attempts on the same question) */}
+            {myPlayer.visualHintActive && (
+              <VisualHint3DAnimator question={question} compact />
+            )}
 
             {/* 4 Big 3D Cube Answer Buttons (64px+ minimum touch target) */}
             {!hasAnswered ? (
-              <div className="grid grid-cols-2 gap-3 flex-1 min-h-[220px]">
+              <div className="grid grid-cols-2 gap-3 flex-1 min-h-[210px]">
                 {ANSWER_OPTIONS_META.map((meta) => {
                   const value = question.options[meta.index];
                   const isEliminated = myPlayer.eliminatedOptions?.includes(meta.index);
+                  const isFailedAttempt = myPlayer.failedOptionsOnCurrent?.includes(meta.index);
 
                   if (isEliminated) {
                     return (
                       <div
                         key={meta.letter}
-                        className="rounded-3xl bg-slate-900/50 border-2 border-dashed border-slate-700 p-4 flex flex-col items-center justify-center text-slate-500 min-h-[108px]"
+                        className="rounded-3xl bg-slate-900/50 border-2 border-dashed border-slate-700 p-4 flex flex-col items-center justify-center text-slate-500 min-h-[104px]"
                       >
                         <span className="text-xs font-bold line-through">
                           Bloco {meta.letter} Removido (50/50)
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (isFailedAttempt) {
+                    return (
+                      <div
+                        key={meta.letter}
+                        className="rounded-3xl bg-rose-950/60 border-2 border-dashed border-rose-500/60 p-3 flex flex-col items-center justify-center text-rose-300 min-h-[104px] text-center"
+                      >
+                        <span className="font-display font-black text-2xl line-through opacity-70">
+                          {value}
+                        </span>
+                        <span className="text-[11px] font-extrabold mt-1">
+                          ✗ Bloco {meta.letter} já tentado
                         </span>
                       </div>
                     );
@@ -621,7 +666,7 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                         onSelectAnswer(meta.index);
                       }}
                       style={{ backgroundColor: meta.hexColor }}
-                      className="cube-3d border-3 border-white rounded-3xl p-4 flex flex-col items-center justify-between text-white min-h-[110px]"
+                      className="cube-3d border-3 border-white rounded-3xl p-4 flex flex-col items-center justify-between text-white min-h-[108px]"
                     >
                       <div className="w-full flex items-center justify-between text-xs font-black drop-shadow">
                         <span>BLOCO {meta.letter}</span>

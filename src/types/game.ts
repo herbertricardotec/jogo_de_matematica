@@ -325,6 +325,10 @@ export interface PlayerState {
   continueChoice: 'PENDING' | 'YES' | 'NO';
   medals: AchievementMedalId[];
   operationStats?: PlayerOperationStats;
+  wrongAttemptsOnCurrent?: number;
+  failedOptionsOnCurrent?: number[];
+  visualHintUnlocked?: boolean;
+  visualHintActive?: boolean;
 }
 
 export function evaluatePlayerMedals(

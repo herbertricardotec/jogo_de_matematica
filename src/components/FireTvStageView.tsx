@@ -23,6 +23,7 @@ import {
   MgnetSoftwareBadge,
   Module3DIllustration,
   NumberCube3D,
+  VisualHint3DAnimator,
 } from './AvatarIcon.tsx';
 import { MobileControllerView } from './MobileControllerView.tsx';
 import { PWAInstallButton } from './PWAInstallButton.tsx';
@@ -69,6 +70,7 @@ interface FireTvStageViewProps {
   onRestartGame: () => void;
   onNextRound: () => void;
   onLocalTvAnswer: (optionIndex: number) => void;
+  onActivateVisualHint?: () => void;
   onSwitchToFullMobile: () => void;
   onAdminKickPlayer: (playerId: string) => void;
   onAdminRotatePin: () => void;
@@ -82,6 +84,7 @@ interface FireTvStageViewProps {
   onSimJoin: (code: string, name: string, avatarId: string) => void;
   onSimAnswer: (optionIndex: number) => void;
   onSimUsePowerUp: (powerUp: PowerUpType) => void;
+  onSimActivateVisualHint?: () => void;
   onSimContinueDecision: (continueGame: boolean) => void;
   onCelebrateMedals?: () => void;
 }
@@ -170,6 +173,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   onRestartGame,
   onNextRound,
   onLocalTvAnswer,
+  onActivateVisualHint,
   onSwitchToFullMobile,
   onAdminKickPlayer,
   onAdminRotatePin,
@@ -179,6 +183,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   onSimJoin,
   onSimAnswer,
   onSimUsePowerUp,
+  onSimActivateVisualHint,
   onSimContinueDecision,
   onCelebrateMedals,
 }) => {
@@ -827,6 +832,30 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
 
                 {/* Fixed 3D Equation Display (No duplicate `= ?` and no extra reveal footer text!) */}
                 <div className="py-1">{renderTvEquation()}</div>
+
+                {/* 3D Visual Hint Animator on TV (Shown when any player misses the same question twice!) */}
+                {roomState.status === 'QUESTION_ACTIVE' &&
+                  roomState.players.some((p) => p.visualHintActive) && (
+                    <div className="pt-1">
+                      <VisualHint3DAnimator question={question} />
+                    </div>
+                  )}
+
+                {/* Button on TV to activate Visual Hint if unlocked */}
+                {roomState.status === 'QUESTION_ACTIVE' &&
+                  !roomState.players.some((p) => p.visualHintActive) &&
+                  roomState.players.some((p) => p.visualHintUnlocked) && (
+                    <div className="pt-1 flex justify-center">
+                      <button
+                        type="button"
+                        data-tv-focusable="true"
+                        onClick={() => onActivateVisualHint?.()}
+                        className="tv-focusable cube-3d px-5 py-2 rounded-2xl bg-[#FFD600] text-slate-950 font-display font-black text-xs sm:text-sm border-2 border-white flex items-center gap-2"
+                      >
+                        <span>💡 Mostrar Dica Visual 3D (Contagem de Blocos)</span>
+                      </button>
+                    </div>
+                  )}
               </div>
 
               {/* Bottom Area: 4 Giant 3D Number Cube Answer Buttons */}
@@ -840,6 +869,11 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                     ? roomState.players.filter((p) => p.currentAnswer === meta.index)
                     : [];
 
+                  const isSingleLocalFailed =
+                    roomState.status === 'QUESTION_ACTIVE' &&
+                    roomState.players.length === 1 &&
+                    Boolean(roomState.players[0]?.failedOptionsOnCurrent?.includes(meta.index));
+
                   return (
                     <motion.button
                       key={meta.letter}
@@ -849,7 +883,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                         idx === 0 && roomState.status === 'QUESTION_ACTIVE' ? 'true' : undefined
                       }
                       whileTap={{ scale: 0.95 }}
-                      disabled={roomState.status !== 'QUESTION_ACTIVE'}
+                      disabled={roomState.status !== 'QUESTION_ACTIVE' || isSingleLocalFailed}
                       onClick={() => {
                         soundEngine.playBuzzerLock(0);
                         onLocalTvAnswer(meta.index);
@@ -859,6 +893,8 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                           ? isCorrect
                             ? '#22C55E'
                             : '#1E293B'
+                          : isSingleLocalFailed
+                          ? '#334155'
                           : meta.hexColor,
                       }}
                       className={`tv-focusable cube-3d rounded-3xl p-4 flex flex-col justify-between min-h-[116px] border-3 transition-all text-white ${
@@ -866,6 +902,8 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                           ? isCorrect
                             ? 'border-white scale-105 shadow-2xl'
                             : 'border-slate-700 opacity-50'
+                          : isSingleLocalFailed
+                          ? 'border-rose-400/60 opacity-60'
                           : 'border-white'
                       }`}
                     >
@@ -878,9 +916,18 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                             <Check className="w-3.5 h-3.5" /> CERTO!
                           </span>
                         )}
+                        {isSingleLocalFailed && (
+                          <span className="bg-rose-600 text-white px-2 py-0.5 rounded-lg">
+                            ✗ TENTADO
+                          </span>
+                        )}
                       </div>
 
-                      <div className="font-display font-black text-4xl lg:text-5xl tabular-nums my-1 drop-shadow-[0_3px_3px_rgba(0,0,0,0.4)]">
+                      <div
+                        className={`font-display font-black text-4xl lg:text-5xl tabular-nums my-1 drop-shadow-[0_3px_3px_rgba(0,0,0,0.4)] ${
+                          isSingleLocalFailed ? 'line-through opacity-70' : ''
+                        }`}
+                      >
                         {val}
                       </div>
 
@@ -889,6 +936,8 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                           ? choosers.length > 0
                             ? `Escolhido por: ${choosers.map((c) => c.name).join(', ')}`
                             : '—'
+                          : isSingleLocalFailed
+                          ? 'Escolha outro bloco!'
                           : `Toque ${meta.letter} no celular`}
                       </div>
                     </motion.button>
@@ -2035,6 +2084,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               onJoinRoom={onSimJoin}
               onSelectAnswer={onSimAnswer}
               onUsePowerUp={onSimUsePowerUp}
+              onActivateVisualHint={onSimActivateVisualHint}
               onContinueDecision={onSimContinueDecision}
               onConfigureGame={onConfigureGame}
               onStartGame={onStartGame}

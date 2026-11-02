@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ACHIEVEMENT_MEDALS,
@@ -6,6 +6,7 @@ import {
   AvatarAccessoryId,
   AvatarBaseCharacterId,
   LearningModuleId,
+  MathQuestion,
 } from '../types/game.ts';
 
 interface AvatarIconProps {
@@ -868,3 +869,307 @@ export const Medal3DBadge: React.FC<{
     </motion.div>
   );
 };
+
+/**
+ * 3D Animated Block Counting Visual Hint ("Dica Visual 3D")
+ * Triggered when a player misses the same question twice, animating 3D blocks being counted step-by-step.
+ */
+export const VisualHint3DAnimator: React.FC<{
+  question: MathQuestion;
+  compact?: boolean;
+}> = ({ question, compact = false }) => {
+  const op = question.operators?.[0] || '+';
+  const a = question.terms?.[0] ?? 2;
+  const b = question.terms?.[1] ?? 2;
+  const isMissingAddend = question.equationFormat === 'MISSING_ADDEND';
+
+  // Cap visual block count to keep layout crisp while teaching the exact counting logic
+  const maxVisual = compact ? 12 : 16;
+
+  let totalSteps = 6;
+  if (isMissingAddend) {
+    totalSteps = Math.min(maxVisual, (question.targetValue || a + b));
+  } else if (op === '+') {
+    totalSteps = Math.min(maxVisual, a + b);
+  } else if (op === '-') {
+    totalSteps = Math.min(maxVisual, a);
+  } else if (op === '×') {
+    totalSteps = Math.min(8, a);
+  } else if (op === '÷') {
+    totalSteps = Math.min(8, b);
+  }
+
+  const [step, setStep] = useState<number>(1);
+  const [replaySeed, setReplaySeed] = useState<number>(0);
+
+  useEffect(() => {
+    setStep(1);
+    const interval = setInterval(() => {
+      setStep((prev) => (prev < totalSteps ? prev + 1 : 1));
+    }, 700);
+    return () => clearInterval(interval);
+  }, [question.id, totalSteps, replaySeed]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.94, y: 6 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      className="rounded-2xl bg-gradient-to-r from-[#0A192F] via-[#112240] to-[#0A192F] border-2 border-[#FFD600] p-3 sm:p-4 space-y-2.5 shadow-xl text-left"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/15 pb-2">
+        <div className="flex items-center gap-2">
+          <span className="px-2.5 py-0.5 rounded-lg bg-[#FFD600] text-slate-950 font-display font-black text-xs uppercase">
+            💡 Dica Visual 3D
+          </span>
+          <span className="text-xs font-extrabold text-sky-200">
+            Observe os blocos 3D sendo contados passo a passo:
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setReplaySeed((s) => s + 1)}
+          className="px-2.5 py-1 rounded-xl bg-sky-800/80 hover:bg-sky-700 border border-white/30 text-[11px] font-black text-white transition-transform active:scale-95"
+        >
+          🔄 Repetir Contagem
+        </button>
+      </div>
+
+      {/* CASO 1: MÓDULO 1 — QUANTOS BLOCOS FALTAM (ex: 3 + ? = 5) */}
+      {isMissingAddend && (
+        <div className="space-y-2">
+          <div className="text-xs font-bold text-emerald-300">
+            Já temos <strong>{a}</strong> bloco(s) azuis. Contando em 3D quantos blocos dourados
+            faltam até <strong>{question.targetValue}</strong>:
+          </div>
+          <div className="flex flex-wrap items-center gap-2 py-1">
+            {Array.from({ length: Math.min(maxVisual, question.targetValue || a + b) }).map(
+              (_, idx) => {
+                const num = idx + 1;
+                const isExisting = num <= a;
+                const isRevealedNow = num <= step;
+                const isCurrentFocus = num === step;
+                const missingCounter = num - a;
+
+                return (
+                  <motion.div
+                    key={idx}
+                    animate={{
+                      scale: isCurrentFocus ? 1.2 : isRevealedNow ? 1 : 0.85,
+                      y: isCurrentFocus ? -5 : 0,
+                      opacity: isRevealedNow ? 1 : 0.35,
+                    }}
+                    transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                    className="flex flex-col items-center gap-0.5"
+                  >
+                    <div
+                      className={`rounded-xl p-0.5 ${
+                        isCurrentFocus ? 'ring-3 ring-[#FFD600] shadow-lg' : ''
+                      }`}
+                    >
+                      <NumberCube3D
+                        number={isExisting ? num : missingCounter}
+                        colorHex={isExisting ? '#007AFF' : '#22C55E'}
+                        size="sm"
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono font-black text-sky-200">
+                      {isExisting ? `Tem ${num}` : `+${missingCounter}`}
+                    </span>
+                  </motion.div>
+                );
+              }
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CASO 2: ADIÇÃO (+) — JUNTANDO DOIS GRUPOS DE BLOCOS */}
+      {!isMissingAddend && op === '+' && (
+        <div className="space-y-2">
+          <div className="text-xs font-bold text-emerald-300">
+            Juntando <strong>{a}</strong> bloco(s) verdes com <strong>+{b}</strong> bloco(s) azuis —
+            Contagem atual:{' '}
+            <strong className="text-[#FFD600] font-mono text-sm">
+              {a + b <= maxVisual
+                ? `${step} bloco(s)`
+                : `${a} + ${Math.min(b, step)} = ${a + Math.min(b, step)}`}
+            </strong>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 py-1">
+            {a + b <= maxVisual ? (
+              Array.from({ length: a + b }).map((_, idx) => {
+                const num = idx + 1;
+                const isFirstGroup = num <= a;
+                const isActive = num <= step;
+                const isCurrent = num === step;
+                return (
+                  <motion.div
+                    key={idx}
+                    animate={{
+                      scale: isCurrent ? 1.22 : isActive ? 1 : 0.84,
+                      y: isCurrent ? -6 : 0,
+                      opacity: isActive ? 1 : 0.35,
+                    }}
+                    className="flex flex-col items-center gap-0.5"
+                  >
+                    <NumberCube3D
+                      number={num}
+                      colorHex={isFirstGroup ? '#22C55E' : '#007AFF'}
+                      size="sm"
+                    />
+                    <span className="text-[10px] font-mono font-black text-[#FFD600]">{num}º</span>
+                  </motion.div>
+                );
+              })
+            ) : (
+              // Para números maiores: mostra o bloco base A e soma +1 por passo do grupo B
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="px-3 py-2 rounded-2xl bg-[#22C55E] border-2 border-white font-mono font-black text-base text-white">
+                  Base: {a}
+                </div>
+                {Array.from({ length: Math.min(10, b) }).map((_, idx) => {
+                  const stepIdx = idx + 1;
+                  const isCurrent = stepIdx === (step % Math.min(10, b)) + 1;
+                  return (
+                    <motion.div
+                      key={idx}
+                      animate={{ scale: isCurrent ? 1.18 : 1, y: isCurrent ? -4 : 0 }}
+                      className="flex flex-col items-center"
+                    >
+                      <NumberCube3D number={a + stepIdx} colorHex="#007AFF" size="sm" />
+                      <span className="text-[10px] font-mono font-black text-sky-200">
+                        +{stepIdx}
+                      </span>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CASO 3: SUBTRAÇÃO (−) — RETIRANDO BLOCOS DA TORRE */}
+      {!isMissingAddend && op === '-' && (
+        <div className="space-y-2">
+          <div className="text-xs font-bold text-amber-300">
+            Começamos com <strong>{a}</strong> blocos e retiramos <strong>{b}</strong> bloco(s)
+            vermelhos. Conte os blocos verdes que ficam!
+          </div>
+          <div className="flex flex-wrap items-center gap-2 py-1">
+            {Array.from({ length: Math.min(maxVisual, a) }).map((_, idx) => {
+              const num = idx + 1;
+              const remainingTarget = a - b;
+              const isKept = num <= remainingTarget;
+              const isCurrent = num === step;
+
+              return (
+                <motion.div
+                  key={idx}
+                  animate={{
+                    scale: isCurrent ? 1.18 : isKept ? 1 : 0.82,
+                    y: isCurrent ? -5 : 0,
+                    opacity: isKept ? 1 : 0.45,
+                  }}
+                  className="flex flex-col items-center gap-0.5 relative"
+                >
+                  <NumberCube3D
+                    number={isKept ? num : b - (num - remainingTarget - 1)}
+                    colorHex={isKept ? '#22C55E' : '#EF4444'}
+                    size="sm"
+                  />
+                  <span
+                    className={`text-[10px] font-mono font-black ${
+                      isKept ? 'text-emerald-300' : 'text-rose-400 line-through'
+                    }`}
+                  >
+                    {isKept ? `Fica ${num}` : 'Saiu'}
+                  </span>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* CASO 4: MULTIPLICAÇÃO (×) — CONTANDO GRUPOS IGUAIS EM 3D */}
+      {!isMissingAddend && op === '×' && (
+        <div className="space-y-2">
+          <div className="text-xs font-bold text-purple-200">
+            Somando <strong>{a} grupos</strong> com <strong>{b} blocos</strong> em cada grupo — Até
+            o grupo {step}:{' '}
+            <strong className="text-[#FFD600] font-mono text-sm">{step * b} blocos!</strong>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5 py-1">
+            {Array.from({ length: Math.min(8, a) }).map((_, gIdx) => {
+              const groupNum = gIdx + 1;
+              const isLit = groupNum <= step;
+              const isCurrent = groupNum === step;
+              return (
+                <motion.div
+                  key={gIdx}
+                  animate={{
+                    scale: isCurrent ? 1.12 : isLit ? 1 : 0.9,
+                    y: isCurrent ? -4 : 0,
+                    opacity: isLit ? 1 : 0.4,
+                  }}
+                  className={`px-3 py-2 rounded-2xl border-2 flex flex-col items-center gap-1 ${
+                    isCurrent
+                      ? 'bg-[#A855F7] border-[#FFD600] shadow-lg'
+                      : isLit
+                      ? 'bg-purple-950/90 border-purple-400'
+                      : 'bg-slate-900 border-slate-700'
+                  }`}
+                >
+                  <span className="text-[10px] font-black text-sky-200">Grupo {groupNum}</span>
+                  <span className="font-mono font-black text-base text-white">+{b}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-black/40 font-mono font-black text-xs text-[#FFD600]">
+                    = {groupNum * b}
+                  </span>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* CASO 5: DIVISÃO (÷) — DISTRIBUINDO EM PARTES IGUAIS */}
+      {!isMissingAddend && op === '÷' && (
+        <div className="space-y-2">
+          <div className="text-xs font-bold text-pink-200">
+            Distribuindo <strong>{a} blocos</strong> igualmente em <strong>{b} caixas 3D</strong>:
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5 py-1">
+            {Array.from({ length: Math.min(8, b) }).map((_, boxIdx) => {
+              const boxNum = boxIdx + 1;
+              const isCurrent = boxNum === step;
+              return (
+                <motion.div
+                  key={boxIdx}
+                  animate={{ scale: isCurrent ? 1.12 : 1, y: isCurrent ? -4 : 0 }}
+                  className={`px-3 py-2 rounded-2xl border-2 flex flex-col items-center gap-1 ${
+                    isCurrent
+                      ? 'bg-[#EC4899] border-[#FFD600] shadow-lg'
+                      : 'bg-slate-900 border-pink-400/50'
+                  }`}
+                >
+                  <span className="text-[10px] font-black text-white">Parte #{boxNum}</span>
+                  <NumberCube3D
+                    number={question.correctAnswer}
+                    colorHex="#007AFF"
+                    size="sm"
+                  />
+                  <span className="text-[10px] font-mono font-black text-[#FFD600]">
+                    {question.correctAnswer} blocos
+                  </span>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+};
+

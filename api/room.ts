@@ -285,6 +285,10 @@ function startQuestion(room: RoomState, roundNumber: number) {
     p.lastPointsEarned = 0;
     p.eliminatedOptions = [];
     p.doubleStarsActive = false;
+    p.wrongAttemptsOnCurrent = 0;
+    p.failedOptionsOnCurrent = [];
+    p.visualHintUnlocked = false;
+    p.visualHintActive = false;
   }
   room.lastUpdatedAt = Date.now();
 }
@@ -327,21 +331,36 @@ function revealCurrentRound(room: RoomState) {
   room.lastUpdatedAt = Date.now();
 }
 
+function hydrateOrGetRoom(code: string, snapshot?: RoomState | null): { room: RoomState; recovered: boolean } {
+  const cleanCode = code && code.length === 4 ? code : generatePinCode();
+  const existing = rooms.get(cleanCode);
+  if (existing) {
+    return { room: existing, recovered: false };
+  }
+  if (snapshot && snapshot.code === cleanCode && Array.isArray(snapshot.players)) {
+    const hydrated: RoomState = {
+      ...snapshot,
+      code: cleanCode,
+      lastUpdatedAt: Date.now(),
+    };
+    rooms.set(cleanCode, hydrated);
+    return { room: hydrated, recovered: false };
+  }
+  const created = createRoomState(cleanCode);
+  return { room: created, recovered: true };
+}
+
 export default async function handler(req: IncomingMessage & { body?: any; query?: any }, res: ServerResponse) {
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
   if (req.method === 'GET') {
     const url = new URL(req.url || '/', 'http://localhost');
-    const code = url.searchParams.get('code') || '';
-    const room = rooms.get(code);
-    if (!room) {
-      res.statusCode = 404;
-      res.end(JSON.stringify({ error: 'Sala não encontrada.' }));
-      return;
-    }
+    const code = (url.searchParams.get('code') || '').trim();
+    const { room, recovered } = hydrateOrGetRoom(code);
     advanceTimersOnRead(room);
     res.statusCode = 200;
-    res.end(JSON.stringify({ state: room }));
+    res.end(JSON.stringify({ state: room, recovered }));
     return;
   }
 
@@ -349,29 +368,45 @@ export default async function handler(req: IncomingMessage & { body?: any; query
     let body = req.body;
     if (!body || typeof body === 'string') {
       const chunks: Buffer[] = [];
+      let totalBytes = 0;
       for await (const chunk of req) {
-        chunks.push(Buffer.from(chunk));
+        const buf = Buffer.from(chunk);
+        totalBytes += buf.length;
+        // Buffer overflow protection: cap request payload at 256KB
+        if (totalBytes > 262144) break;
+        chunks.push(buf);
       }
       const raw = Buffer.concat(chunks).toString('utf8');
-      body = raw ? JSON.parse(raw) : {};
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
+        body = {};
+      }
     }
 
     const type = body.type;
     const code = String(body.code || '').trim();
+    const snapshot = body.stateSnapshot as RoomState | undefined;
 
     if (type === 'room:create') {
-      let room = code ? rooms.get(code) : undefined;
-      if (!room) room = createRoomState(code);
+      const { room } = hydrateOrGetRoom(code, snapshot);
       advanceTimersOnRead(room);
       res.statusCode = 200;
       res.end(JSON.stringify({ state: room }));
       return;
     }
 
-    const room = rooms.get(code);
-    if (!room) {
-      res.statusCode = 404;
-      res.end(JSON.stringify({ error: 'Código de sala inválido! Confira os 4 dígitos na TV.' }));
+    const { room } = hydrateOrGetRoom(code, snapshot);
+
+    if (type === 'room:sync_snapshot' && snapshot && snapshot.code === room.code) {
+      // Merge client buffer snapshot when serverless isolate cold-started
+      if (snapshot.lastUpdatedAt >= room.lastUpdatedAt || room.players.length === 0) {
+        Object.assign(room, snapshot);
+        rooms.set(room.code, room);
+      }
+      advanceTimersOnRead(room);
+      res.statusCode = 200;
+      res.end(JSON.stringify({ state: room }));
       return;
     }
 
@@ -422,6 +457,10 @@ export default async function handler(req: IncomingMessage & { body?: any; query
           continueChoice: 'PENDING',
           medals: [],
           operationStats: createEmptyOperationStats(),
+          wrongAttemptsOnCurrent: 0,
+          failedOptionsOnCurrent: [],
+          visualHintUnlocked: false,
+          visualHintActive: false,
         };
         room.players.push(existing);
       }
@@ -491,6 +530,10 @@ export default async function handler(req: IncomingMessage & { body?: any; query
           continueChoice: 'PENDING',
           medals: [],
           operationStats: createEmptyOperationStats(),
+          wrongAttemptsOnCurrent: 0,
+          failedOptionsOnCurrent: [],
+          visualHintUnlocked: false,
+          visualHintActive: false,
         });
       }
       for (const p of room.players) {
@@ -503,19 +546,56 @@ export default async function handler(req: IncomingMessage & { body?: any; query
         p.totalAnswerTimeMs = 0;
         p.medals = [];
         p.powerUpsUsed = { FIFTY_FIFTY: false, FREEZE_TIME: false, DOUBLE_STARS: false };
+        p.wrongAttemptsOnCurrent = 0;
+        p.failedOptionsOnCurrent = [];
+        p.visualHintUnlocked = false;
+        p.visualHintActive = false;
       }
       startQuestion(room, 1);
     } else if (type === 'player:answer') {
       const q = room.currentQuestion;
       const p = room.players.find((pl) => pl.id === body.playerId) || room.players[0];
-      if (q && p && p.currentAnswer === null) {
-        p.currentAnswer = Number(body.optionIndex);
-        p.answerTimeMs = Math.max(100, Date.now() - q.startedAt);
-        p.totalAnswered += 1;
-        p.totalAnswerTimeMs += p.answerTimeMs;
-        if (room.players.every((pl) => pl.currentAnswer !== null)) {
-          revealCurrentRound(room);
+      const optionIndex = Number(body.optionIndex);
+      if (
+        q &&
+        p &&
+        p.currentAnswer === null &&
+        !isNaN(optionIndex) &&
+        optionIndex >= 0 &&
+        optionIndex <= 3
+      ) {
+        const isCorrectChoice = optionIndex === q.correctIndex;
+        const attemptsSoFar = p.wrongAttemptsOnCurrent || 0;
+
+        if (!isCorrectChoice && attemptsSoFar < 2) {
+          p.wrongAttemptsOnCurrent = attemptsSoFar + 1;
+          if (!p.failedOptionsOnCurrent) p.failedOptionsOnCurrent = [];
+          if (!p.failedOptionsOnCurrent.includes(optionIndex)) {
+            p.failedOptionsOnCurrent.push(optionIndex);
+          }
+
+          if (p.wrongAttemptsOnCurrent === 1) {
+            room.lastPowerUpAnnouncement = `${p.name} tentou um bloco incorreto (1/2) — tente mais uma vez!`;
+          } else if (p.wrongAttemptsOnCurrent >= 2) {
+            p.visualHintUnlocked = true;
+            p.visualHintActive = true;
+            q.durationMs += 6000;
+            room.lastPowerUpAnnouncement = `💡 Dica Visual 3D ativada para ${p.name}! Veja os blocos sendo contados!`;
+          }
+        } else {
+          p.currentAnswer = optionIndex;
+          p.answerTimeMs = Math.max(100, Date.now() - q.startedAt);
+          p.totalAnswered += 1;
+          p.totalAnswerTimeMs += p.answerTimeMs;
+          if (room.players.every((pl) => pl.currentAnswer !== null)) {
+            revealCurrentRound(room);
+          }
         }
+      }
+    } else if (type === 'player:activate_visual_hint') {
+      const p = room.players.find((pl) => pl.id === body.playerId) || room.players[0];
+      if (p && p.visualHintUnlocked) {
+        p.visualHintActive = true;
       }
     } else if (type === 'player:use_powerup') {
       const q = room.currentQuestion;

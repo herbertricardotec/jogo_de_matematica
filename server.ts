@@ -312,7 +312,10 @@ function broadcastRoomState(room: InternalRoom) {
 
   for (const client of room.clients) {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(payload);
+      // Buffer verification: avoid queuing messages if client socket buffer is congested (>64KB)
+      if (client.bufferedAmount < 65536) {
+        client.send(payload);
+      }
     }
   }
 }
@@ -383,6 +386,10 @@ function startNextQuestion(room: InternalRoom, nextRoundNumber: number) {
     p.lastPointsEarned = 0;
     p.eliminatedOptions = [];
     p.doubleStarsActive = false;
+    p.wrongAttemptsOnCurrent = 0;
+    p.failedOptionsOnCurrent = [];
+    p.visualHintUnlocked = false;
+    p.visualHintActive = false;
   }
 
   broadcastRoomState(room);
@@ -855,6 +862,22 @@ async function startServer() {
             break;
           }
 
+          case 'player:activate_visual_hint': {
+            if (!currentRoom || currentRoom.state.status !== 'QUESTION_ACTIVE') return;
+            const targetId = String(msg.playerId || currentPlayerId || '');
+            const player =
+              currentRoom.state.players.find((p) => p.id === targetId) ||
+              currentRoom.state.players[0];
+            if (!player) return;
+            if ((player.wrongAttemptsOnCurrent || 0) >= 2 || player.visualHintUnlocked) {
+              player.visualHintUnlocked = true;
+              player.visualHintActive = true;
+              currentRoom.state.lastPowerUpAnnouncement = `💡 ${player.name} ativou a Dica Visual 3D!`;
+              broadcastRoomState(currentRoom);
+            }
+            break;
+          }
+
           case 'player:answer': {
             if (!currentRoom || currentRoom.state.status !== 'QUESTION_ACTIVE') return;
             const question = currentRoom.state.currentQuestion;
@@ -870,12 +893,53 @@ async function startServer() {
             const optionIndex = Number(msg.optionIndex);
             if (isNaN(optionIndex) || optionIndex < 0 || optionIndex > 3) return;
             if (player.eliminatedOptions.includes(optionIndex)) return;
+            if (player.failedOptionsOnCurrent?.includes(optionIndex)) return;
 
             const elapsed = Math.max(100, Date.now() - question.startedAt);
-            player.currentAnswer = optionIndex;
-            player.answerTimeMs = Math.min(elapsed, question.durationMs);
-            player.totalAnswered += 1;
-            player.totalAnswerTimeMs += player.answerTimeMs;
+            const isCorrect = optionIndex === question.correctIndex;
+
+            if (isCorrect) {
+              player.currentAnswer = optionIndex;
+              player.answerTimeMs = Math.min(elapsed, question.durationMs);
+              player.totalAnswered += 1;
+              player.totalAnswerTimeMs += player.answerTimeMs;
+            } else {
+              player.wrongAttemptsOnCurrent = (player.wrongAttemptsOnCurrent || 0) + 1;
+              if (!player.failedOptionsOnCurrent) {
+                player.failedOptionsOnCurrent = [];
+              }
+              if (!player.failedOptionsOnCurrent.includes(optionIndex)) {
+                player.failedOptionsOnCurrent.push(optionIndex);
+              }
+
+              if (player.wrongAttemptsOnCurrent === 1) {
+                // 1st wrong attempt: let the player try again on the same question
+                player.currentAnswer = null;
+                currentRoom.state.lastPowerUpAnnouncement = `${player.name} tentou um bloco e tem mais uma chance!`;
+              } else if (player.wrongAttemptsOnCurrent === 2) {
+                // 2nd wrong attempt on the same question: unlock & activate 3D Visual Hint!
+                player.currentAnswer = null;
+                player.visualHintUnlocked = true;
+                player.visualHintActive = true;
+                question.durationMs += 6000;
+                const remaining = Math.max(1500, question.durationMs - elapsed);
+                if (currentRoom.roundTimer) {
+                  clearTimeout(currentRoom.roundTimer);
+                }
+                currentRoom.roundTimer = setTimeout(() => {
+                  if (currentRoom && currentRoom.state.status === 'QUESTION_ACTIVE') {
+                    revealCurrentRound(currentRoom);
+                  }
+                }, remaining);
+                currentRoom.state.lastPowerUpAnnouncement = `💡 Dica Visual 3D ativada para ${player.name}! Conte os blocos animados!`;
+              } else {
+                // 3rd wrong attempt: lock answer so round can proceed
+                player.currentAnswer = optionIndex;
+                player.answerTimeMs = Math.min(elapsed, question.durationMs);
+                player.totalAnswered += 1;
+                player.totalAnswerTimeMs += player.answerTimeMs;
+              }
+            }
 
             broadcastRoomState(currentRoom);
 

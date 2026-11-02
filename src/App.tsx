@@ -50,8 +50,15 @@ export default function App() {
   const simPlayerId = useRef<string>(getOrCreatePlayerId('mathshow_sim_player_id')).current;
 
   const wsRef = useRef<WebSocket | null>(null);
+  const wsDisabledRef = useRef<boolean>(false);
   const useHttpFallbackRef = useRef<boolean>(false);
   const activeRoomCodeRef = useRef<string>(initialRoomParam || '');
+  const roomStateRef = useRef<RoomState | null>(null);
+
+  // Buffer & in-flight request guards to prevent request pile-up or UI freezes
+  const inFlightPollRef = useRef<boolean>(false);
+  const inFlightActionCountRef = useRef<number>(0);
+  const lastSyncTimestampRef = useRef<number>(0);
 
   const prevStatusRef = useRef<string>('');
   const prevQuestionIdRef = useRef<string>('');
@@ -63,7 +70,9 @@ export default function App() {
   }, [viewMode]);
 
   const applyIncomingState = useCallback((nextState: RoomState) => {
+    if (!nextState || !nextState.code) return;
     activeRoomCodeRef.current = nextState.code;
+    roomStateRef.current = nextState;
     window.sessionStorage.setItem('mathshow_room_code', nextState.code);
 
     // Player joined celebration on TV
@@ -125,26 +134,53 @@ export default function App() {
 
   const sendAction = useCallback(
     async (payload: Record<string, unknown>) => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      if (
+        wsRef.current &&
+        wsRef.current.readyState === WebSocket.OPEN &&
+        wsRef.current.bufferedAmount < 65536
+      ) {
         wsRef.current.send(JSON.stringify(payload));
         return;
       }
 
-      // Serverless HTTP Fallback (for Vercel deployments where persistent WebSockets aren't active)
+      // Buffer verification: avoid stacking more than 3 concurrent POST actions
+      if (inFlightActionCountRef.current >= 3) {
+        return;
+      }
+
+      inFlightActionCountRef.current += 1;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
       try {
         const code =
           (payload.code as string) ||
           activeRoomCodeRef.current ||
           window.sessionStorage.getItem('mathshow_room_code') ||
           initialRoomParam;
+
+        // Include lightweight stateSnapshot buffer so Vercel serverless cold-starts hydrate seamlessly without 404s
+        const currentSnap =
+          roomStateRef.current && roomStateRef.current.code !== '----'
+            ? roomStateRef.current
+            : undefined;
+
         const res = await fetch('/api/room', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, code }),
+          body: JSON.stringify({
+            ...payload,
+            code,
+            stateSnapshot: currentSnap,
+          }),
+          signal: controller.signal,
         });
-        const data = await res.json();
+
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setErrorMessage(data.error || 'Erro ao comunicar com a sala.');
+          if (data.error) {
+            setErrorMessage(data.error);
+          }
           return;
         }
         if (data.state) {
@@ -152,7 +188,10 @@ export default function App() {
           applyIncomingState(data.state);
         }
       } catch {
-        // Ignore network errors while reconnecting
+        // Ignore transient network timeouts while reconnecting
+      } finally {
+        clearTimeout(timeoutId);
+        inFlightActionCountRef.current = Math.max(0, inFlightActionCountRef.current - 1);
       }
     },
     [applyIncomingState, initialRoomParam]
@@ -176,26 +215,76 @@ export default function App() {
       }
 
       pollInterval = setInterval(async () => {
-        if (isUnmounted) return;
+        // Buffer guard: never start a new poll if a poll or action is already in flight
+        if (isUnmounted || inFlightPollRef.current || inFlightActionCountRef.current > 0) {
+          return;
+        }
+
         const code =
           activeRoomCodeRef.current ||
           window.sessionStorage.getItem('mathshow_room_code') ||
           initialRoomParam;
         if (!code || code.length !== 4) return;
+
+        inFlightPollRef.current = true;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3200);
+
         try {
-          const res = await fetch(`/api/room?code=${encodeURIComponent(code)}`);
+          const res = await fetch(`/api/room?code=${encodeURIComponent(code)}`, {
+            signal: controller.signal,
+            headers: { 'Cache-Control': 'no-cache' },
+          });
           if (res.ok) {
             const data = await res.json();
-            if (data.state) applyIncomingState(data.state);
+            if (data.state) {
+              const localSnap = roomStateRef.current;
+              const serverIsFreshEmpty =
+                Boolean(data.recovered) &&
+                data.state.players?.length === 0 &&
+                data.state.status === 'TITLE_MENU';
+              const localHasActiveSession =
+                Boolean(localSnap) &&
+                localSnap!.code === code &&
+                (localSnap!.players.length > 0 || localSnap!.status !== 'TITLE_MENU');
+
+              // If Vercel serverless spun up a new instance, push our local snapshot buffer to hydrate it immediately
+              if (
+                serverIsFreshEmpty &&
+                localHasActiveSession &&
+                Date.now() - lastSyncTimestampRef.current > 2000
+              ) {
+                lastSyncTimestampRef.current = Date.now();
+                sendAction({
+                  type: 'room:sync_snapshot',
+                  code,
+                  stateSnapshot: localSnap,
+                });
+              } else {
+                applyIncomingState(data.state);
+              }
+            }
           }
         } catch {
-          // Ignore transient polling errors
+          // Ignore transient polling timeouts
+        } finally {
+          clearTimeout(timeoutId);
+          inFlightPollRef.current = false;
         }
-      }, 900);
+      }, 1000);
     };
 
     const connectWebSocket = () => {
       if (isUnmounted) return;
+
+      // On Vercel serverless (.vercel.app) or after a failed WS handshake, use HTTP Polling directly without WS console errors
+      const hostname = window.location.hostname || '';
+      if (wsDisabledRef.current || hostname.endsWith('.vercel.app')) {
+        wsDisabledRef.current = true;
+        startHttpFallbackPolling();
+        return;
+      }
+
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}`;
       let opened = false;
@@ -256,18 +345,21 @@ export default function App() {
 
         socket.onerror = () => {
           if (!opened) {
+            wsDisabledRef.current = true;
             startHttpFallbackPolling();
           }
         };
 
         socket.onclose = () => {
           if (!opened) {
+            wsDisabledRef.current = true;
             startHttpFallbackPolling();
           } else if (!isUnmounted) {
-            reconnectTimeout = setTimeout(connectWebSocket, 1500);
+            reconnectTimeout = setTimeout(connectWebSocket, 2000);
           }
         };
       } catch {
+        wsDisabledRef.current = true;
         startHttpFallbackPolling();
       }
     };
@@ -304,6 +396,16 @@ export default function App() {
       sendAction({
         type: 'player:answer',
         optionIndex,
+        playerId: customPlayerId || mobilePlayerId,
+      });
+    },
+    [sendAction, mobilePlayerId]
+  );
+
+  const handleActivateVisualHint = useCallback(
+    (customPlayerId?: string) => {
+      sendAction({
+        type: 'player:activate_visual_hint',
         playerId: customPlayerId || mobilePlayerId,
       });
     },
@@ -402,6 +504,7 @@ export default function App() {
         onJoinRoom={(code, name, avatarId) => handleJoinRoom(code, name, avatarId, mobilePlayerId)}
         onSelectAnswer={(idx) => handleSelectAnswer(idx, mobilePlayerId)}
         onUsePowerUp={(p) => handleUsePowerUp(p, mobilePlayerId)}
+        onActivateVisualHint={() => handleActivateVisualHint(mobilePlayerId)}
         onContinueDecision={(cont) => handleContinueDecision(cont, mobilePlayerId)}
         onConfigureGame={handleConfigureGame}
         onStartGame={handleStartGame}
@@ -446,6 +549,7 @@ export default function App() {
       onRestartGame={handleRestartGame}
       onNextRound={handleNextRound}
       onLocalTvAnswer={(idx) => handleSelectAnswer(idx, effectiveRoomState.players[0]?.id)}
+      onActivateVisualHint={() => handleActivateVisualHint(effectiveRoomState.players[0]?.id)}
       onSwitchToFullMobile={() => setViewMode('CONTROLLER')}
       onAdminKickPlayer={handleAdminKickPlayer}
       onAdminRotatePin={handleAdminRotatePin}
@@ -455,6 +559,7 @@ export default function App() {
       onSimJoin={(code, name, avatarId) => handleJoinRoom(code, name, avatarId, simPlayerId)}
       onSimAnswer={(idx) => handleSelectAnswer(idx, simPlayerId)}
       onSimUsePowerUp={(p) => handleUsePowerUp(p, simPlayerId)}
+      onSimActivateVisualHint={() => handleActivateVisualHint(simPlayerId)}
       onSimContinueDecision={(cont) => handleContinueDecision(cont, simPlayerId)}
       onCelebrateMedals={() => setBurstTrigger((c) => c + 1)}
     />
