@@ -444,7 +444,7 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                 maxLength={14}
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="Ex: Ricardo, Bia..."
+                placeholder="Ex: Ricardo, Vania..."
                 required
                 className="w-full h-13 px-3.5 rounded-2xl bg-[#0F172A] border-2 border-sky-400 focus:border-[#FFD600] focus:outline-none text-base font-bold text-white"
               />

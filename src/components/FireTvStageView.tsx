@@ -29,6 +29,7 @@ import {
 import { MobileControllerView } from './MobileControllerView.tsx';
 import { PWAInstallButton } from './PWAInstallButton.tsx';
 import {
+  AttractRecordsHero,
   clearHighScoreEntries,
   GlobalSoundSettingsToggle,
   HighScoreEntry,
@@ -231,6 +232,70 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   // Fire TV Stick (Amazon Silk), 1080p & 4K Auto-Fit Viewport Scaler + Fullscreen State
   const [tvScale, setTvScale] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Rodízio da Tela Principal com a Tela de Recordes:
+  // Se ficar na tela principal mais de 25 segundos sem nenhuma interação, entra em rodízio (20s cada tela).
+  // Qualquer interação com controle ou toque reseta para a tela principal e reinicia a contagem.
+  const [attractView, setAttractView] = useState<'TITLE' | 'RECORDS'>('TITLE');
+
+  useEffect(() => {
+    const isTitleMenuIdle =
+      roomState.status === 'TITLE_MENU' &&
+      !showAdminPanel &&
+      !showLeaderboardModal &&
+      !showParentalGate;
+
+    if (!isTitleMenuIdle) {
+      setAttractView('TITLE');
+      return;
+    }
+
+    let currentScreen: 'TITLE' | 'RECORDS' = 'TITLE';
+    let secondsOnScreen = 0;
+    let initialIdle = true;
+
+    const resetIdleOnInteraction = () => {
+      currentScreen = 'TITLE';
+      secondsOnScreen = 0;
+      initialIdle = true;
+      setAttractView('TITLE');
+    };
+
+    window.addEventListener('keydown', resetIdleOnInteraction);
+    window.addEventListener('pointerdown', resetIdleOnInteraction);
+    window.addEventListener('pointermove', resetIdleOnInteraction);
+    window.addEventListener('touchstart', resetIdleOnInteraction);
+    window.addEventListener('wheel', resetIdleOnInteraction);
+
+    const intervalId = window.setInterval(() => {
+      secondsOnScreen += 1;
+
+      if (currentScreen === 'TITLE') {
+        const threshold = initialIdle ? 25 : 20;
+        if (secondsOnScreen >= threshold) {
+          currentScreen = 'RECORDS';
+          secondsOnScreen = 0;
+          initialIdle = false;
+          setAttractView('RECORDS');
+        }
+      } else {
+        if (secondsOnScreen >= 20) {
+          currentScreen = 'TITLE';
+          secondsOnScreen = 0;
+          setAttractView('TITLE');
+        }
+      }
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('keydown', resetIdleOnInteraction);
+      window.removeEventListener('pointerdown', resetIdleOnInteraction);
+      window.removeEventListener('pointermove', resetIdleOnInteraction);
+      window.removeEventListener('touchstart', resetIdleOnInteraction);
+      window.removeEventListener('wheel', resetIdleOnInteraction);
+    };
+  }, [roomState.status, showAdminPanel, showLeaderboardModal, showParentalGate]);
 
   // Start gentle Background Music when stage mounts and unlock audio context on first interaction
   useEffect(() => {
@@ -675,11 +740,19 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
 
         {/* MAIN STAGE BODY (No vertical overflow clipping!) */}
         <main className="relative z-10 flex-1 flex flex-col justify-center px-3 lg:px-6 py-1.5 overflow-hidden">
-          {/* TELA 1: SPLASH / MENU PRINCIPAL */}
+          {/* TELA 1: SPLASH / MENU PRINCIPAL COM RODÍZIO AUTOMÁTICO DE RECORDES */}
           {roomState.status === 'TITLE_MENU' && (
             <div className="max-w-4xl w-full mx-auto flex flex-col items-center text-center space-y-2.5">
-              <KidsMathSplashHero />
+              {/* Espaço de conteúdo superior compartilhado (Splash Hero vs Recordes da Sala) */}
+              <div className="w-full flex items-center justify-center">
+                {attractView === 'TITLE' ? (
+                  <KidsMathSplashHero />
+                ) : (
+                  <AttractRecordsHero entries={highScoreEntries} />
+                )}
+              </div>
 
+              {/* Botão JOGAR na mesma posição física em ambas as telas */}
               <div className="flex flex-wrap items-center justify-center gap-4 pt-0.5">
                 <button
                   type="button"
@@ -699,7 +772,9 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               <div className="flex flex-col items-center gap-1">
                 <MgnetSoftwareBadge onOpenParentalGate={() => setShowParentalGate(true)} />
                 <div className="text-[11px] text-sky-200 font-bold tracking-wide">
-                  Setas do Controle Fire TV Navegam · Enter Seleciona · Celular Pareamento via QR Code
+                  {attractView === 'TITLE'
+                    ? 'Setas do Controle Fire TV Navegam · Enter Seleciona · Celular Pareamento via QR Code'
+                    : '⭐ Modo Demonstração de Recordes (Alterna a cada 20s) · Pressione qualquer botão para voltar'}
                 </div>
               </div>
             </div>
@@ -1649,7 +1724,9 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                               {player.name}
                             </h3>
                             {player.isHost && (
-                              <Crown className="w-4 h-4 text-[#FFD600]" title="Líder da Sala" />
+                              <span title="Líder da Sala">
+                                <Crown className="w-4 h-4 text-[#FFD600]" />
+                              </span>
                             )}
                           </div>
                         </div>
@@ -2194,6 +2271,10 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                 entries={highScoreEntries}
                 onClearEntries={handleClearLeaderboard}
                 onClose={() => setShowLeaderboardModal(false)}
+                onStartPlay={() => {
+                  setShowLeaderboardModal(false);
+                  onSetStatus('LOBBY');
+                }}
                 isEmbeddedInAdmin={false}
               />
             </div>

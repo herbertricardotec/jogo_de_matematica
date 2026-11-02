@@ -4,6 +4,7 @@ import {
   Crown,
   Medal,
   Music,
+  Play,
   Sparkles,
   Trash2,
   Trophy,
@@ -15,7 +16,7 @@ import {
   DifficultyLevel,
   LearningModuleId,
   LEARNING_MODULES,
-  MedalId,
+  AchievementMedalId,
   RoomState,
   evaluatePlayerMedals,
 } from '../types/game.ts';
@@ -36,7 +37,7 @@ export interface HighScoreEntry {
   accuracyPct: number;
   moduleId: LearningModuleId;
   difficulty: DifficultyLevel;
-  medals: MedalId[];
+  medals: AchievementMedalId[];
   isBot?: boolean;
   playedAt: number;
 }
@@ -96,7 +97,7 @@ export function recordMatchResultsToLeaderboard(roomState: RoomState): HighScore
     return loadHighScoreEntries();
   }
 
-  const matchSignature = `${roomState.code}_${roomState.gameOverStartedAt || roomState.roundIndex}_${roomState.players
+  const matchSignature = `${roomState.code}_${roomState.gameOverStartedAt || roomState.currentQuestion?.roundNumber || 0}_${roomState.players
     .map((p) => `${p.id}:${p.score}`)
     .join('|')}`;
 
@@ -290,6 +291,7 @@ interface HighScoreLeaderboardModalProps {
   entries: HighScoreEntry[];
   onClearEntries: () => void;
   onClose?: () => void;
+  onStartPlay?: () => void;
   isEmbeddedInAdmin?: boolean;
 }
 
@@ -297,6 +299,7 @@ export const HighScoreLeaderboardView: React.FC<HighScoreLeaderboardModalProps> 
   entries,
   onClearEntries,
   onClose,
+  onStartPlay,
   isEmbeddedInAdmin = false,
 }) => {
   const [viewMode, setViewMode] = useState<'BEST_MATCHES' | 'CUMULATIVE'>('BEST_MATCHES');
@@ -383,6 +386,21 @@ export const HighScoreLeaderboardView: React.FC<HighScoreLeaderboardModalProps> 
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>{confirmClear ? 'Confirmar Limpeza?' : 'Zerar Recordes'}</span>
+            </button>
+          )}
+
+          {onStartPlay && (
+            <button
+              type="button"
+              data-tv-focusable="true"
+              onClick={() => {
+                soundEngine.playPlayerJoin();
+                onStartPlay();
+              }}
+              className="tv-focusable cube-3d min-h-[34px] px-4 py-1 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white text-xs font-display font-black flex items-center gap-1.5 shadow-md active:scale-95"
+            >
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>JOGAR</span>
             </button>
           )}
 
@@ -552,3 +570,133 @@ export const HighScoreLeaderboardView: React.FC<HighScoreLeaderboardModalProps> 
     </div>
   );
 };
+
+/**
+ * Attract Mode Records Display for Idle Rotation on Title Screen
+ * Dimensions & structure match KidsMathSplashHero so the JOGAR button below sits at the exact same location!
+ */
+export const AttractRecordsHero: React.FC<{
+  entries: HighScoreEntry[];
+  className?: string;
+}> = ({ entries, className = 'w-full max-w-3xl' }) => {
+  const top4 = entries.slice(0, 4);
+
+  return (
+    <div className={`relative flex flex-col items-center select-none ${className}`}>
+      {/* Top Balloon Banner ("HALL DA FAMA · RECORDES DA SALA") — Matches KidsMathSplashHero banner */}
+      <div className="relative z-10 w-full max-w-2xl px-6 sm:px-8 py-3 sm:py-3.5 rounded-[28px] bg-gradient-to-b from-[#007AFF] via-[#0284C7] to-[#0369A1] border-4 border-white shadow-[0_6px_0_#075985,0_12px_24px_rgba(0,0,0,0.5)] flex items-center justify-between gap-4">
+        {/* Left 3D Trophy */}
+        <div className="hidden sm:flex flex-col items-center gap-1 shrink-0" aria-hidden="true">
+          <div className="w-11 h-11 rounded-2xl bg-[#FFD600] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-xl text-slate-950 -rotate-6 shadow-md">
+            🏆
+          </div>
+          <span className="text-[10px] font-black text-yellow-300">TOP 1</span>
+        </div>
+
+        {/* Center Title */}
+        <div className="flex flex-col items-center text-center mx-auto">
+          <span className="inline-block px-3.5 py-0.5 rounded-full bg-slate-950/35 border border-white/30 title-3d-white font-display font-black text-xs sm:text-sm lg:text-base tracking-widest uppercase leading-tight">
+            HALL DA FAMA · SALVAMENTO LOCAL
+          </span>
+          <h2 className="mt-0.5 title-3d-yellow font-display font-black text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-none drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)]">
+            Recordes da Sala
+          </h2>
+        </div>
+
+        {/* Right 3D Star Badge */}
+        <div className="hidden sm:flex flex-col items-center gap-1 shrink-0" aria-hidden="true">
+          <div className="w-11 h-11 rounded-2xl bg-[#22C55E] border-2 border-white cube-3d flex items-center justify-center font-display font-black text-xl text-white rotate-6 shadow-md">
+            ⭐
+          </div>
+          <span className="text-[10px] font-black text-emerald-300">{entries.length} Jogos</span>
+        </div>
+      </div>
+
+      {/* 3D Scene / Records Cards container matching KidsMathSplashHero */}
+      <div className="mt-2.5 w-full max-w-2xl rounded-3xl bg-gradient-to-b from-[#0F172A]/90 to-[#1E293B]/95 border-3 border-white/30 px-5 pt-3 pb-3 panel-3d flex flex-col justify-center relative overflow-hidden min-h-[178px]">
+        {top4.length === 0 ? (
+          <div className="flex items-center justify-around gap-4 py-1 z-10">
+            <div className="flex flex-col items-center">
+              <AvatarIcon
+                avatarId="leo_infantil_m|#F97316|none"
+                className="w-14 h-14 sm:w-16 sm:h-16 drop-shadow-md"
+              />
+              <span className="text-xs font-bold text-sky-200 mt-0.5">Ricardo</span>
+            </div>
+            <div className="flex flex-col items-center text-center max-w-xs space-y-1">
+              <div className="text-sm font-black text-[#FFD600] flex items-center justify-center gap-1.5">
+                <Trophy className="w-4 h-4 text-[#FFD600]" />
+                <span>Nenhum Recorde Gravado</span>
+              </div>
+              <p className="text-xs text-sky-200 leading-snug">
+                Complete uma rodada para cravar sua pontuação e estrelas no Hall da Fama!
+              </p>
+              <div className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-wide">
+                ⭐ Salvo automaticamente entre sessões
+              </div>
+            </div>
+            <div className="flex flex-col items-center">
+              <AvatarIcon
+                avatarId="bia_infantil_f|#EC4899|none"
+                className="w-14 h-14 sm:w-16 sm:h-16 drop-shadow-md"
+              />
+              <span className="text-xs font-bold text-pink-200 mt-0.5">Vania</span>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 z-10">
+            {top4.map((entry, idx) => {
+              const rankMedals = ['🥇 #1', '🥈 #2', '🥉 #3', '🎖️ #4'];
+              const borderStyles = [
+                'border-[#FFD600] bg-gradient-to-r from-[#FFD600]/20 to-[#0F172A]',
+                'border-slate-300/80 bg-gradient-to-r from-slate-300/15 to-[#0F172A]',
+                'border-amber-600/80 bg-gradient-to-r from-amber-600/15 to-[#0F172A]',
+                'border-sky-500/50 bg-[#071936]',
+              ];
+
+              return (
+                <div
+                  key={entry.id}
+                  className={`rounded-2xl px-3 py-1.5 border-2 flex items-center justify-between gap-2 shadow-sm ${
+                    borderStyles[idx] || 'border-white/20 bg-[#071936]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[11px] font-black shrink-0 tabular-nums">
+                      {rankMedals[idx] || `#${idx + 1}`}
+                    </span>
+                    <AvatarIcon
+                      avatarId={entry.avatarId}
+                      className="w-9 h-9 shrink-0 drop-shadow"
+                    />
+                    <div className="min-w-0">
+                      <div className="font-display font-black text-xs text-white truncate leading-tight">
+                        {entry.playerName}
+                      </div>
+                      <div className="text-[10px] text-sky-300 font-bold tabular-nums">
+                        {entry.accuracyPct}% acertos
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0 tabular-nums">
+                    <div className="font-mono font-black text-sm text-[#22C55E] leading-tight">
+                      {entry.score} pts
+                    </div>
+                    <div className="text-[10px] font-black text-[#FFD600]">
+                      ⭐ {entry.stars}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Warm Wooden Table Base Strip */}
+        <div className="absolute bottom-0 left-0 right-0 h-2.5 bg-gradient-to-r from-[#B45309] via-[#EAB308] to-[#B45309]" />
+      </div>
+    </div>
+  );
+};
+

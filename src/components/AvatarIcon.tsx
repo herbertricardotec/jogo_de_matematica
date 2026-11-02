@@ -47,7 +47,9 @@ function normalizeLegacyCharacter(charId: string): AvatarBaseCharacterId {
     case 'panda_genius':
     case 'cat_astro':
     case 'leo_infantil_m':
+    case 'ricardo_infantil_m':
     case 'bia_infantil_f':
+    case 'vania_infantil_f':
     case 'kaua_infantil_m':
     case 'sofia_infantil_f':
     case 'lucas_teen_m':
@@ -89,7 +91,7 @@ interface CharacterStyleProfile {
 }
 
 const CHARACTER_PROFILES: Record<string, CharacterStyleProfile> = {
-  // 1. Léo (Infantil Masculino - Menino sorridente de cabelo castanho penteado, inspirado na Imagem 2)
+  // 1. Ricardo (Infantil Masculino - Menino sorridente de cabelo castanho penteado, inspirado na Imagem 2)
   leo_infantil_m: {
     skinBase: '#F6C09E',
     skinShadow: '#DF9B74',
@@ -100,8 +102,28 @@ const CHARACTER_PROFILES: Record<string, CharacterStyleProfile> = {
     hairStyle: 'boy_side_part',
     outfitStyle: 'tshirt',
   },
-  // 2. Bia (Infantil Feminino - Menina alegre de cabelo ruivo com coque alto, inspirada na Imagem 2)
+  ricardo_infantil_m: {
+    skinBase: '#F6C09E',
+    skinShadow: '#DF9B74',
+    skinHighlight: '#FFE0C8',
+    hairColor: '#5C2C16',
+    hairHighlight: '#8B4513',
+    shirtDefault: '#F97316',
+    hairStyle: 'boy_side_part',
+    outfitStyle: 'tshirt',
+  },
+  // 2. Vania (Infantil Feminino - Menina alegre de cabelo ruivo com coque alto, inspirada na Imagem 2)
   bia_infantil_f: {
+    skinBase: '#F7C6A6',
+    skinShadow: '#E2A27E',
+    skinHighlight: '#FFE4D0',
+    hairColor: '#C85A28',
+    hairHighlight: '#EA7B44',
+    shirtDefault: '#EC4899',
+    hairStyle: 'girl_top_bun',
+    outfitStyle: 'tshirt',
+  },
+  vania_infantil_f: {
     skinBase: '#F7C6A6',
     skinShadow: '#E2A27E',
     skinHighlight: '#FFE4D0',
@@ -973,7 +995,7 @@ export const Module3DIllustration: React.FC<{ moduleId: LearningModuleId }> = ({
 /**
  * Splash / Title Screen Centerpiece Illustration:
  * Crystal-clear, unobstructed "JOGO DE MATEMÁTICA" 3D Title Banner
- * flanked by +, −, ×, ÷ 3D blocks + Léo & Bia 3D Kid Avatars stacking blocks 1, 2, 3, 4, 5
+ * flanked by +, −, ×, ÷ 3D blocks + Ricardo & Vania 3D Kid Avatars stacking blocks 1, 2, 3, 4, 5
  */
 export const KidsMathSplashHero: React.FC<{ className?: string }> = ({
   className = 'w-full max-w-3xl',
@@ -1014,14 +1036,14 @@ export const KidsMathSplashHero: React.FC<{ className?: string }> = ({
 
     {/* 3D Scene: Kids & Teens 3D Avatars Building the Tower of Number Blocks (1, 2, 3, 4, 5) */}
     <div className="mt-2.5 w-full max-w-2xl rounded-3xl bg-gradient-to-b from-[#0F172A]/90 to-[#1E293B]/95 border-3 border-white/30 px-5 pt-3 pb-3 panel-3d flex items-end justify-around gap-3 relative overflow-hidden">
-      {/* Left Character: Léo (Infantil Masculino) & Lucas (Adolescente Masculino) */}
+      {/* Left Character: Ricardo (Infantil Masculino) & Lucas (Adolescente Masculino) */}
       <div className="flex items-end gap-2.5 z-10">
         <div className="flex flex-col items-center">
           <AvatarIcon
             avatarId="leo_infantil_m|#F97316|none"
             className="w-16 h-16 sm:w-18 sm:h-18 drop-shadow-xl"
           />
-          <span className="mt-0.5 text-xs font-extrabold text-sky-200">Léo</span>
+          <span className="mt-0.5 text-xs font-extrabold text-sky-200">Ricardo</span>
         </div>
         <div className="hidden sm:flex flex-col items-center">
           <AvatarIcon
@@ -1047,7 +1069,7 @@ export const KidsMathSplashHero: React.FC<{ className?: string }> = ({
         </div>
       </div>
 
-      {/* Right Character: Bia (Infantil Feminino) & Maya (Adolescente Feminino) */}
+      {/* Right Character: Vania (Infantil Feminino) & Maya (Adolescente Feminino) */}
       <div className="flex items-end gap-2.5 z-10">
         <div className="hidden sm:flex flex-col items-center">
           <AvatarIcon
@@ -1061,7 +1083,7 @@ export const KidsMathSplashHero: React.FC<{ className?: string }> = ({
             avatarId="bia_infantil_f|#EC4899|none"
             className="w-16 h-16 sm:w-18 sm:h-18 drop-shadow-xl"
           />
-          <span className="mt-0.5 text-xs font-extrabold text-pink-200">Bia</span>
+          <span className="mt-0.5 text-xs font-extrabold text-pink-200">Vania</span>
         </div>
       </div>
 

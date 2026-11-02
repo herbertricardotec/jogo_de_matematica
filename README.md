@@ -88,7 +88,7 @@ Exibe os 4 slots sempre lado a lado na tela da TV:
 Durante o login no celular, o jogador escolhe seu personagem 3D dividido em **3 categorias**:
 1. **🐾 Animais 3D**: *Raposa Cientista*, *Coruja Sabida*, *Panda Gênio* e *Gatinha Astro*.
 2. **🧱 Blocos Sorridentes 3D**: *Cubo Sorridente*, *Bloco Estrela*, *Cubo Gênio* e *Robô Calculadora*.
-3. **👧👦 Crianças & Teens 3D**: *Léo*, *Bia*, *Kauã*, *Sofia*, *Lucas*, *Maya*, *Gui* e *Lara*.
+3. **👧👦 Crianças & Teens 3D**: *Ricardo*, *Vania*, *Kauã*, *Sofia*, *Lucas*, *Maya*, *Gui* e *Lara*.
 
 - **Exclusividade Garantida**: Se outro jogador já estiver usando um avatar na sala, ele aparece marcado como **"Em uso na TV"** no seletor do celular e o servidor garante que cada pedestal tenha uma identidade visual única.
 
@@ -211,6 +211,15 @@ jogo-de-matematica-tv/
 | **Módulo 2** | `+` | **Somando com Blocos** | Operações divertidas de Adição (`+`) empilhando cubos | *"Qual é a soma dos blocos 6 mais 5?"* (`6 + 5 = [ ? ]`) |
 | **Módulo 3** | `−` | **Subtraindo e Desmontando** | Operações de Subtração (`−`) tirando blocos da torre | *"Se tirarmos 4 blocos de 9, quantos ficam?"* (`9 - 4 = [ ? ]`) |
 | **Módulo 4** | `×÷` | **Desafio dos Símbolos** | Multiplicação (`×`), Divisão (`÷`) e misturas de símbolos | *"3 grupos de 4 blocos formam quantos blocos?"* (`3 × 4 = [ ? ]`) |
+
+---
+
+## 📺 MODO DEMONSTRAÇÃO & RODÍZIO AUTOMÁTICO NA TV (ATTRACT MODE)
+
+- **Inatividade Inteligente**: Se a TV permanecer na Tela Principal por mais de **25 segundos** sem interação do controle remoto ou toque, o sistema entra em **Rodízio Automático**.
+- **Ciclo de 20 Segundos**: Alterna automaticamente a cada **20 segundos** entre a Tela de Boas-Vindas (`JOGO DE MATEMÁTICA`) e o **Hall da Fama (Recordes da Sala)**.
+- **Botão JOGAR Alinhado**: Em ambas as telas, o botão **JOGAR** permanece rigorosamente nas mesmas coordenadas visuais, permitindo iniciar a partida instantaneamente com o controle da TV (D-pad/Enter) ou toque.
+- **Retorno Instantâneo**: Qualquer interação com o controle Fire TV, toque na tela ou mouse restaura a tela principal imediatamente e reinicia o cronômetro.
 
 ---
 

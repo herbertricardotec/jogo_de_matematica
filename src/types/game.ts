@@ -158,7 +158,9 @@ export type AvatarBaseCharacterId =
   | 'panda_genius'
   | 'cat_astro'
   | 'leo_infantil_m'
+  | 'ricardo_infantil_m'
   | 'bia_infantil_f'
+  | 'vania_infantil_f'
   | 'kaua_infantil_m'
   | 'sofia_infantil_f'
   | 'lucas_teen_m'
@@ -258,7 +260,7 @@ export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
   // ESTUDANTES 3D
   {
     id: 'leo_infantil_m',
-    label: 'Léo (Infantil M)',
+    label: 'Ricardo (Infantil M)',
     category: 'ESTUDANTES',
     categoryLabel: 'Estudante 3D',
     ageGroup: 'Infantil',
@@ -267,7 +269,7 @@ export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
   },
   {
     id: 'bia_infantil_f',
-    label: 'Bia (Infantil F)',
+    label: 'Vania (Infantil F)',
     category: 'ESTUDANTES',
     categoryLabel: 'Estudante 3D',
     ageGroup: 'Infantil',
