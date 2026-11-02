@@ -3,14 +3,29 @@
 
 @layer base {
   :root {
-    --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
-    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    /* Design System Color Tokens — Jogo de Matemática (MgnetSoftware) */
+    --color-primary-blue: #007AFF;
+    --color-sky-blue: #0284C7;
+    --color-vibrant-yellow: #FFD600;
+    --color-yellow-accent: #FACC15;
+    --color-vivid-red: #EF4444;
+    --color-lime-green: #22C55E;
+    --color-green-dark: #16A34A;
+    --color-vibrant-orange: #F97316;
+    --color-royal-purple: #A855F7;
+    --color-purple-dark: #9333EA;
+    --color-kids-pink: #EC4899;
+    --color-warm-wood: #D97706;
+    --color-wood-light: #EAB308;
+
+    --font-display: 'Fredoka', 'Outfit', system-ui, -apple-system, sans-serif;
+    --font-sans: 'Nunito', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
   }
 
   body {
     font-family: var(--font-sans);
-    background-color: #080D1E;
+    background-color: #071936;
     color: #F8FAFC;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
@@ -26,10 +41,50 @@
   }
 }
 
-/* Fire TV Remote D-Pad Focus Ring */
-.tv-focusable:focus-visible {
-  outline: 4px solid #F59E0B;
-  outline-offset: 3px;
-  box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.25);
+/* 3D Extruded Typography for "Jogo de" (White with Blue 3D relief) */
+.title-3d-white {
+  font-family: var(--font-display);
+  color: #FFFFFF;
+  text-shadow:
+    0 3px 0 #0284C7,
+    0 6px 0 #0369A1,
+    0 9px 14px rgba(0, 0, 0, 0.45);
 }
 
+/* 3D Extruded Typography for "Matemática" (Yellow #FFD600 with dark border & 3D relief) */
+.title-3d-yellow {
+  font-family: var(--font-display);
+  color: #FFD600;
+  text-shadow:
+    0 3px 0 #B45309,
+    0 6px 0 #78350F,
+    0 10px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* 3D Toy Block Elevation */
+.cube-3d {
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.35),
+    0 6px 0 rgba(0, 0, 0, 0.28),
+    0 10px 20px rgba(0, 0, 0, 0.25);
+}
+
+.cube-3d:active {
+  transform: translateY(4px);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.25),
+    0 2px 0 rgba(0, 0, 0, 0.28),
+    0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Fire TV Remote D-Pad Spatial Navigation Focus Ring */
+.tv-focusable:focus,
+.tv-focusable:focus-visible {
+  outline: 4px solid #FFD600 !important;
+  outline-offset: 3px;
+  box-shadow:
+    0 0 0 8px rgba(255, 214, 0, 0.32),
+    0 8px 24px rgba(0, 0, 0, 0.45) !important;
+  transform: scale(1.03);
+  z-index: 20;
+}

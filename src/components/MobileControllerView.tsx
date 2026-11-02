@@ -1,15 +1,31 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import {
   ANSWER_OPTIONS_META,
   DifficultyLevel,
   GameMode,
+  LEARNING_MODULES,
+  LearningModuleId,
   PLAYER_AVATARS,
   PlayerState,
+  PowerUpType,
   RoomState,
 } from '../types/game.ts';
-import { AvatarIcon } from './AvatarIcon.tsx';
+import { AvatarIcon, MgnetSoftwareBadge, NumberCube3D } from './AvatarIcon.tsx';
 import { soundEngine } from '../utils/sound.ts';
-import { CheckCircle2, Crown, Play, RotateCcw, Tv, Users, Volume2, VolumeX, XCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  Crown,
+  Play,
+  RotateCcw,
+  Scissors,
+  Snowflake,
+  Sparkles,
+  Star,
+  Tv,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 
 interface MobileControllerViewProps {
   roomState: RoomState | null;
@@ -18,9 +34,11 @@ interface MobileControllerViewProps {
   errorMessage: string | null;
   onJoinRoom: (code: string, name: string, avatarId: string) => void;
   onSelectAnswer: (optionIndex: number) => void;
+  onUsePowerUp: (powerUp: PowerUpType) => void;
   onConfigureGame: (config: {
     mode?: GameMode;
     difficulty?: DifficultyLevel;
+    moduleId?: LearningModuleId;
     totalRounds?: number;
   }) => void;
   onStartGame: () => void;
@@ -37,6 +55,7 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
   errorMessage,
   onJoinRoom,
   onSelectAnswer,
+  onUsePowerUp,
   onConfigureGame,
   onStartGame,
   onRestartGame,
@@ -60,66 +79,66 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
   const handleJoinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPin = pinCode.trim();
-    const cleanName = playerName.trim() || 'Competidor';
+    const cleanName = playerName.trim() || 'Campeão';
     if (cleanPin.length !== 4) return;
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('mathshow_player_name', cleanName);
     }
+    soundEngine.vibrate('tap');
     soundEngine.playPlayerJoin();
     onJoinRoom(cleanPin, cleanName, selectedAvatar);
   };
 
   const handleToggleMute = () => {
+    soundEngine.vibrate('tap');
     setMuted(soundEngine.toggleMute());
   };
 
-  // 1. JOIN FORM (Before connecting to a TV room)
+  // 1. JOIN SCREEN (Kid-Friendly Big Touch Inputs >= 64px)
   if (!isJoined || !roomState || !myPlayer) {
     return (
       <div
         className={`${
           isEmbeddedPiP ? 'h-full' : 'min-h-screen'
-        } w-full bg-[#080D1E] text-[#F8FAFC] flex flex-col justify-between p-4 sm:p-6`}
+        } w-full bg-gradient-to-b from-[#007AFF] via-[#072B59] to-[#0A192F] text-[#F8FAFC] flex flex-col justify-between p-4 sm:p-6`}
       >
-        {/* Top Bar (Compact 52px) */}
-        <header className="flex items-center justify-between gap-4 pb-3 border-b border-slate-800">
+        <header className="flex items-center justify-between gap-4 pb-3 border-b border-white/15">
           <div className="flex items-center gap-2">
-            <span className="font-display font-bold text-lg tracking-tight text-amber-400 whitespace-nowrap shrink-0">
-              MathShow Controle
+            <span className="title-3d-yellow font-display font-black text-xl tracking-tight whitespace-nowrap shrink-0">
+              Jogo de Matemática
             </span>
           </div>
           {!isEmbeddedPiP && onSwitchToTvMode && (
             <button
               type="button"
               onClick={onSwitchToTvMode}
-              className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-xs font-medium text-slate-200 flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors"
+              className="min-h-[48px] px-3.5 py-2 rounded-2xl bg-white/15 hover:bg-white/25 text-xs font-bold text-white flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors"
             >
-              <Tv className="w-4 h-4 text-amber-400" />
-              <span>Abrir Modo Fire TV</span>
+              <Tv className="w-4 h-4 text-[#FFD600]" />
+              <span>Ver Tela da TV</span>
             </button>
           )}
         </header>
 
-        {/* Form Body */}
-        <form onSubmit={handleJoinSubmit} className="my-auto py-4 max-w-md w-full mx-auto space-y-5">
-          <div className="space-y-1">
-            <h1 className="font-display text-2xl font-extrabold text-white">
-              Conectar ao Palco da TV
+        <form onSubmit={handleJoinSubmit} className="my-auto py-3 max-w-md w-full mx-auto space-y-4">
+          <div className="text-center space-y-1">
+            <h1 className="title-3d-white font-display text-2xl sm:text-3xl font-black">
+              Controle Mágico de Blocos
             </h1>
-            <p className="text-sm text-slate-400">
-              Digite o código de 4 dígitos exibido na sua Amazon Fire TV.
+            <p className="text-xs sm:text-sm text-sky-200 font-semibold">
+              Digite os 4 números que aparecem na sua Fire TV!
             </p>
           </div>
 
           {errorMessage && (
-            <div className="p-3.5 rounded-2xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs font-medium">
+            <div className="p-3.5 rounded-2xl bg-red-600/90 border-2 border-white text-white text-xs font-bold text-center">
               {errorMessage}
             </div>
           )}
 
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-300">
-              Código da Sala (PIN de 4 dígitos)
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-sky-100 text-center">
+              Código da Sala na TV (4 Dígitos)
             </label>
             <input
               type="text"
@@ -130,28 +149,28 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
               onChange={(e) => setPinCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
               placeholder="0000"
               required
-              className="w-full h-14 px-4 rounded-2xl bg-[#1E293B] border border-slate-700 focus:border-amber-400 focus:outline-none font-mono text-2xl font-bold tracking-[0.35em] text-center text-amber-400 tabular-nums"
+              className="w-full h-16 px-4 rounded-2xl bg-[#0F172A] border-3 border-[#FFD600] focus:outline-none font-mono text-3xl font-black tracking-[0.35em] text-center text-[#FFD600] tabular-nums shadow-inner"
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-300">
-              Seu Nome no Placar
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-sky-100">
+              Seu Nome ou Apelido
             </label>
             <input
               type="text"
               maxLength={14}
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="Ex: Lucas, Sofia, Pai..."
+              placeholder="Ex: Léo, Bia, Lucas..."
               required
-              className="w-full h-12 px-4 rounded-2xl bg-[#1E293B] border border-slate-700 focus:border-amber-400 focus:outline-none text-base font-semibold text-white"
+              className="w-full h-14 px-4 rounded-2xl bg-[#0F172A] border-2 border-sky-400 focus:border-[#FFD600] focus:outline-none text-base font-bold text-white"
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-300">
-              Escolha seu Competidor
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-sky-100">
+              Escolha Seu Personagem
             </label>
             <div className="grid grid-cols-4 gap-2.5">
               {PLAYER_AVATARS.map((av) => {
@@ -160,15 +179,18 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                   <button
                     key={av.id}
                     type="button"
-                    onClick={() => setSelectedAvatar(av.id)}
-                    className={`min-h-[64px] p-2 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
+                    onClick={() => {
+                      soundEngine.vibrate('tap');
+                      setSelectedAvatar(av.id);
+                    }}
+                    className={`min-h-[68px] p-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
                       active
-                        ? 'bg-slate-800 border-amber-400 ring-2 ring-amber-400/30'
-                        : 'bg-[#1E293B]/70 border-slate-800 opacity-75 hover:opacity-100'
+                        ? 'bg-[#007AFF] border-[#FFD600] scale-105 shadow-lg'
+                        : 'bg-[#0F172A]/80 border-white/20 opacity-80'
                     }`}
                   >
-                    <AvatarIcon avatarId={av.id} className="w-8 h-8" />
-                    <span className="text-[11px] font-medium text-slate-200 truncate max-w-full">
+                    <AvatarIcon avatarId={av.id} className="w-9 h-9" />
+                    <span className="text-[11px] font-extrabold text-white truncate max-w-full">
                       {av.label.split(' ')[0]}
                     </span>
                   </button>
@@ -177,27 +199,26 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
             </div>
           </div>
 
-          {/* Primary Action in Natural Thumb Zone */}
           <div className="pt-2">
             <button
               type="submit"
               disabled={pinCode.trim().length !== 4}
-              className="w-full min-h-[54px] rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-display font-bold text-base flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.98] whitespace-nowrap"
+              className="cube-3d w-full min-h-[64px] rounded-3xl bg-[#22C55E] hover:bg-[#16A34A] disabled:bg-slate-800 disabled:text-slate-500 border-3 border-white text-white font-display font-black text-xl flex items-center justify-center gap-2.5 transition-transform active:scale-95 whitespace-nowrap"
             >
-              <Play className="w-5 h-5 fill-current" />
-              <span>Entrar no Palco</span>
+              <Play className="w-6 h-6 fill-current" />
+              <span>JOGAR NA TV!</span>
             </button>
           </div>
         </form>
 
-        <footer className="text-center text-xs text-slate-500 pt-2">
-          Pareamento em tempo real para Amazon Fire TV Stick
+        <footer className="flex justify-center pt-1">
+          <MgnetSoftwareBadge />
         </footer>
       </div>
     );
   }
 
-  // 2. ACTIVE CONTROLLER VIEW (Connected to Room)
+  // 2. ACTIVE CONTROLLER VIEW
   const question = roomState.currentQuestion;
   const isQuestionActive = roomState.status === 'QUESTION_ACTIVE' && question !== null;
   const isReveal = roomState.status === 'ROUND_REVEAL' && question !== null;
@@ -205,7 +226,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
   const isMyAnswerCorrect =
     question !== null && myPlayer.currentAnswer === question.correctIndex;
 
-  // Player rank calculation
   const sortedPlayers = [...roomState.players].sort((a, b) => b.score - a.score);
   const myRank = sortedPlayers.findIndex((p) => p.id === myPlayer.id) + 1;
 
@@ -213,33 +233,33 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
     <div
       className={`${
         isEmbeddedPiP ? 'h-full' : 'min-h-screen'
-      } w-full bg-[#080D1E] text-[#F8FAFC] flex flex-col justify-between p-3.5 sm:p-5 select-none`}
+      } w-full bg-gradient-to-b from-[#0284C7] via-[#072B59] to-[#0A192F] text-[#F8FAFC] flex flex-col justify-between p-3.5 sm:p-5 select-none`}
     >
-      {/* Compact Sticky Top App Bar (<= 10% mobile height) */}
-      <header className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-2xl bg-[#1E293B] border border-slate-800">
+      {/* Compact Top Bar */}
+      <header className="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-[#0F172A]/95 border-2 border-sky-400/50">
         <div className="flex items-center gap-2.5 min-w-0">
-          <AvatarIcon avatarId={myPlayer.avatarId} className="w-8 h-8 shrink-0" />
+          <AvatarIcon avatarId={myPlayer.avatarId} className="w-9 h-9 shrink-0" />
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="font-display font-bold text-sm text-white truncate">
+              <span className="font-display font-black text-sm text-white truncate">
                 {myPlayer.name}
               </span>
               {myPlayer.isHost && (
-                <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-label="Anfitrião" />
+                <Crown className="w-4 h-4 text-[#FFD600] shrink-0" aria-label="Líder da Sala" />
               )}
             </div>
-            <div className="text-xs text-slate-400 flex items-center gap-1.5 tabular-nums">
+            <div className="text-xs text-sky-300 font-bold flex items-center gap-1.5 tabular-nums">
               <span>Sala {roomState.code}</span>
               <span aria-hidden="true">·</span>
-              <span>{myRank}º Lugar</span>
+              <span className="text-[#FFD600]">⭐ {myPlayer.stars}</span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <div className="text-right px-2.5 py-1 rounded-xl bg-slate-900/90 border border-slate-800">
-            <div className="text-[10px] text-slate-400">Pontos</div>
-            <div className="font-mono font-bold text-sm text-amber-400 tabular-nums">
+          <div className="text-right px-3 py-1 rounded-xl bg-slate-900 border border-slate-700">
+            <div className="text-[10px] font-bold text-sky-300">PONTOS</div>
+            <div className="font-mono font-black text-sm text-[#FFD600] tabular-nums">
               {myPlayer.score}
             </div>
           </div>
@@ -247,78 +267,87 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
             type="button"
             onClick={handleToggleMute}
             aria-label={muted ? 'Ativar som' : 'Silenciar'}
-            className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300"
+            className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-white"
           >
-            {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            {muted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
           </button>
         </div>
       </header>
 
-      {/* MIDDLE + BOTTOM THUMB ZONE */}
+      {/* MAIN CONTROLLER WORKSPACE */}
       <main className="flex-1 flex flex-col justify-between my-3 gap-3 max-w-md w-full mx-auto">
-        {/* STATE A: LOBBY / TITLE MENU (Host can configure & start) */}
+        {/* STATE A: LOBBY / MODULE SELECTION */}
         {(roomState.status === 'LOBBY' || roomState.status === 'TITLE_MENU') && (
-          <div className="flex-1 flex flex-col justify-between gap-4 bg-[#1E293B]/60 border border-slate-800 rounded-3xl p-4">
-            <div className="space-y-2 text-center my-auto">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-400 mx-auto">
-                <Users className="w-6 h-6" />
+          <div className="flex-1 flex flex-col justify-between gap-3 bg-[#0F172A]/90 border-2 border-sky-400/40 rounded-3xl p-4">
+            <div className="space-y-1.5 text-center my-auto">
+              <div className="flex justify-center gap-1.5">
+                <NumberCube3D number={1} colorHex="#007AFF" size="sm" />
+                <NumberCube3D number={2} colorHex="#FFD600" size="sm" />
+                <NumberCube3D number={3} colorHex="#EF4444" size="sm" />
               </div>
-              <h2 className="font-display text-xl font-bold text-white">
-                Você está no Palco #{myPlayer.slotIndex + 1}!
+              <h2 className="font-display text-xl font-black text-white pt-1">
+                Controle #{myPlayer.slotIndex + 1} Pronto!
               </h2>
-              <p className="text-xs text-slate-300">
-                {roomState.players.length} de 4 controles conectados na TV.
+              <p className="text-xs text-sky-200 font-semibold">
+                {roomState.players.length} de 4 jogadores conectados na Fire TV.
               </p>
             </div>
 
             {myPlayer.isHost ? (
-              <div className="space-y-3 pt-2 border-t border-slate-800">
-                <div className="text-xs font-semibold text-amber-400">
-                  Controle VIP do Anfitrião (Configurar Partida)
+              <div className="space-y-2.5 pt-2 border-t border-slate-800">
+                <div className="text-xs font-extrabold text-[#FFD600]">
+                  Escolha o Módulo da Trilha Educativa:
                 </div>
 
-                {/* Mode Selector */}
+                {/* 4 Learning Modules Selector */}
                 <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onConfigureGame({ mode: 'COMPETITIVE' })}
-                    className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold border transition-colors whitespace-nowrap ${
-                      roomState.settings.mode === 'COMPETITIVE'
-                        ? 'bg-amber-500 text-slate-950 border-amber-400'
-                        : 'bg-slate-900 text-slate-300 border-slate-800'
-                    }`}
-                  >
-                    Competitivo (1º a 4º)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onConfigureGame({ mode: 'COOPERATIVE' })}
-                    className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold border transition-colors whitespace-nowrap ${
-                      roomState.settings.mode === 'COOPERATIVE'
-                        ? 'bg-emerald-500 text-slate-950 border-emerald-400'
-                        : 'bg-slate-900 text-slate-300 border-slate-800'
-                    }`}
-                  >
-                    Cooperativo (Equipe)
-                  </button>
+                  {LEARNING_MODULES.map((mod) => {
+                    const selected = roomState.settings.moduleId === mod.id;
+                    return (
+                      <button
+                        key={mod.id}
+                        type="button"
+                        onClick={() => {
+                          soundEngine.vibrate('tap');
+                          onConfigureGame({ moduleId: mod.id });
+                        }}
+                        style={{
+                          backgroundColor: selected ? mod.bgColor : '#1E293B',
+                        }}
+                        className={`min-h-[56px] p-2.5 rounded-2xl border-2 text-left transition-transform active:scale-95 ${
+                          selected ? 'border-white shadow-lg' : 'border-slate-700 opacity-85'
+                        }`}
+                      >
+                        <div className="text-[10px] font-black uppercase text-white/90">
+                          {mod.numberLabel}
+                        </div>
+                        <div className="font-display font-black text-xs text-white leading-tight">
+                          {mod.title}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Difficulty Selector */}
                 <div className="grid grid-cols-3 gap-1.5">
                   {(
                     [
-                      { id: 'EASY', label: 'Iniciante (≤20)' },
-                      { id: 'MEDIUM', label: 'Médio (≤100)' },
-                      { id: 'HARD', label: 'Mestre (3 nºs)' },
+                      { id: 'EASY', label: 'Fácil (1-10)' },
+                      { id: 'MEDIUM', label: 'Médio' },
+                      { id: 'HARD', label: 'Super' },
                     ] as { id: DifficultyLevel; label: string }[]
                   ).map((d) => (
                     <button
                       key={d.id}
                       type="button"
-                      onClick={() => onConfigureGame({ difficulty: d.id })}
-                      className={`min-h-[44px] px-2 py-1.5 rounded-xl text-xs font-semibold border transition-colors whitespace-nowrap ${
+                      onClick={() => {
+                        soundEngine.vibrate('tap');
+                        onConfigureGame({ difficulty: d.id });
+                      }}
+                      className={`min-h-[44px] px-2 py-1.5 rounded-xl text-xs font-extrabold border-2 transition-colors whitespace-nowrap ${
                         roomState.settings.difficulty === d.id
-                          ? 'bg-blue-600 text-white border-blue-400'
+                          ? 'bg-[#FFD600] text-slate-950 border-white'
                           : 'bg-slate-900 text-slate-300 border-slate-800'
                       }`}
                     >
@@ -330,118 +359,211 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    soundEngine.vibrate('success');
                     soundEngine.playNewQuestion();
                     onStartGame();
                   }}
-                  className="w-full min-h-[54px] rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-display font-extrabold text-base flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.98] whitespace-nowrap"
+                  className="cube-3d w-full min-h-[60px] rounded-3xl bg-[#22C55E] hover:bg-[#16A34A] border-3 border-white text-white font-display font-black text-lg flex items-center justify-center gap-2 transition-transform active:scale-95 whitespace-nowrap"
                 >
-                  <Play className="w-5 h-5 fill-current" />
-                  <span>Iniciar Show na TV</span>
+                  <Play className="w-6 h-6 fill-current" />
+                  <span>COMEÇAR JOGO NA TV!</span>
                 </button>
               </div>
             ) : (
-              <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-center text-xs text-slate-300">
-                Aguardando o Jogador 1 iniciar o show na TV...
+              <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-sky-400/30 text-center text-xs font-bold text-sky-200">
+                Olhe para a TV! O Jogador 1 está escolhendo o módulo...
               </div>
             )}
           </div>
         )}
 
-        {/* STATE B: ACTIVE QUESTION (4 Big Ergonomic Thumb Buttons) */}
+        {/* STATE B: ACTIVE QUESTION (4 Big 3D Cubes >= 64px + 3 Power-Up Buttons at Bottom) */}
         {isQuestionActive && question && (
           <>
-            {/* Equation Mirror Header on Phone */}
-            <div className="p-3.5 rounded-2xl bg-[#1E293B] border border-slate-700 text-center space-y-1">
-              <div className="text-xs font-medium text-slate-400 flex items-center justify-center gap-2 tabular-nums">
+            {/* Question Visual Header on Phone */}
+            <div className="p-3 rounded-2xl bg-[#0F172A]/95 border-2 border-sky-400/50 text-center space-y-1">
+              <div className="text-[11px] font-bold text-sky-300 flex items-center justify-center gap-1.5">
                 <span>
-                  Rodada {question.roundNumber} de {question.totalRounds}
+                  Atividade {question.roundNumber}/{question.totalRounds}
                 </span>
                 <span aria-hidden="true">·</span>
-                <span>{question.categoryLabel}</span>
+                <span className="text-[#FFD600]">{question.promptText}</span>
               </div>
-              <div className="font-display font-black text-3xl sm:text-4xl text-white tracking-tight tabular-nums">
-                {question.expression} = ?
+              <div className="font-display font-black text-3xl text-white tracking-tight tabular-nums">
+                {question.expression}
               </div>
             </div>
 
-            {/* 4 Tactile Buzzer Buttons in Natural Thumb Zone */}
+            {/* 4 Big 3D Cube Answer Buttons (64px+ minimum touch target) */}
             {!hasAnswered ? (
-              <div className="grid grid-cols-2 gap-3 flex-1 min-h-[260px]">
+              <div className="grid grid-cols-2 gap-3 flex-1 min-h-[230px]">
                 {ANSWER_OPTIONS_META.map((meta) => {
                   const value = question.options[meta.index];
+                  const isEliminated = myPlayer.eliminatedOptions?.includes(meta.index);
+
+                  if (isEliminated) {
+                    return (
+                      <div
+                        key={meta.letter}
+                        className="rounded-3xl bg-slate-900/50 border-2 border-dashed border-slate-700 p-4 flex flex-col items-center justify-center text-slate-500 min-h-[108px]"
+                      >
+                        <span className="text-xs font-bold line-through">
+                          Bloco {meta.letter} Removido (50/50)
+                        </span>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <button
+                    <motion.button
                       key={meta.letter}
                       type="button"
+                      whileTap={{ scale: 0.92, y: 4 }}
                       onClick={() => {
+                        soundEngine.vibrate('tap');
                         soundEngine.playBuzzerLock(myPlayer.slotIndex);
                         onSelectAnswer(meta.index);
                       }}
-                      className={`${meta.bgClass} border-2 ${meta.borderClass} rounded-3xl p-4 flex flex-col items-center justify-between text-white shadow-lg active:scale-95 transition-transform min-h-[110px]`}
+                      style={{ backgroundColor: meta.hexColor }}
+                      className="cube-3d border-3 border-white rounded-3xl p-4 flex flex-col items-center justify-between text-white min-h-[112px]"
                     >
-                      <div className="w-full flex items-center justify-between text-xs font-bold opacity-90">
-                        <span>OPÇÃO {meta.letter}</span>
+                      <div className="w-full flex items-center justify-between text-xs font-black drop-shadow">
+                        <span>BLOCO {meta.letter}</span>
                         <span className="text-base">{meta.shape}</span>
                       </div>
-                      <div className="font-mono font-extrabold text-3xl sm:text-4xl tabular-nums my-auto">
+                      <div className="font-display font-black text-4xl sm:text-5xl tabular-nums my-auto drop-shadow-[0_3px_3px_rgba(0,0,0,0.45)]">
                         {value}
                       </div>
-                      <div className="text-[11px] font-medium opacity-80">
-                        Toque para travar
+                      <div className="text-[11px] font-extrabold bg-black/20 px-2.5 py-0.5 rounded-lg">
+                        Toque no Cubo
                       </div>
-                    </button>
+                    </motion.button>
                   );
                 })}
               </div>
             ) : (
-              <div className="flex-1 rounded-3xl bg-[#1E293B] border-2 border-amber-400/60 p-6 flex flex-col items-center justify-center text-center space-y-3">
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-mono text-2xl font-extrabold">
-                  {ANSWER_OPTIONS_META[myPlayer.currentAnswer ?? 0].shape}{' '}
-                  {ANSWER_OPTIONS_META[myPlayer.currentAnswer ?? 0].letter}
-                </div>
-                <h3 className="font-display text-xl font-bold text-white">
-                  Resposta Travada: {question.options[myPlayer.currentAnswer ?? 0]}
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="flex-1 rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] p-6 flex flex-col items-center justify-center text-center space-y-3"
+              >
+                <NumberCube3D
+                  number={question.options[myPlayer.currentAnswer ?? 0]}
+                  colorHex={ANSWER_OPTIONS_META[myPlayer.currentAnswer ?? 0].hexColor}
+                  size="lg"
+                />
+                <h3 className="font-display text-2xl font-black text-white">
+                  Bloco Escolhido!
                 </h3>
-                <p className="text-xs text-slate-300">
-                  Olhe para a TV! A revelação acontece assim que todos responderem.
+                <p className="text-xs font-bold text-sky-200">
+                  Olhe para a TV para ver a torre de blocos!
                 </p>
-              </div>
+              </motion.div>
             )}
+
+            {/* 3 TACTICAL SINGLE-USE POWER-UP BUTTONS AT BOTTOM OF MOBILE CONTROLLER */}
+            <div className="pt-1">
+              <div className="text-[11px] font-extrabold text-sky-200 mb-1.5 text-center">
+                Ajudas Especiais (1 uso por partida):
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {/* Power-Up 1: 50/50 Cut 2 Wrong Options */}
+                <button
+                  type="button"
+                  disabled={hasAnswered || myPlayer.powerUpsUsed?.FIFTY_FIFTY}
+                  onClick={() => {
+                    soundEngine.vibrate('powerup');
+                    soundEngine.playPowerUp();
+                    onUsePowerUp('FIFTY_FIFTY');
+                  }}
+                  className={`min-h-[64px] p-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
+                    myPlayer.powerUpsUsed?.FIFTY_FIFTY
+                      ? 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-50'
+                      : 'bg-[#A855F7] hover:bg-[#9333EA] border-white text-white cube-3d'
+                  }`}
+                >
+                  <Scissors className="w-5 h-5" />
+                  <span className="text-[11px] font-black leading-none whitespace-nowrap">
+                    Cortar 2 (50/50)
+                  </span>
+                </button>
+
+                {/* Power-Up 2: Freeze / Add +5s */}
+                <button
+                  type="button"
+                  disabled={hasAnswered || myPlayer.powerUpsUsed?.FREEZE_TIME}
+                  onClick={() => {
+                    soundEngine.vibrate('powerup');
+                    soundEngine.playPowerUp();
+                    onUsePowerUp('FREEZE_TIME');
+                  }}
+                  className={`min-h-[64px] p-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
+                    myPlayer.powerUpsUsed?.FREEZE_TIME
+                      ? 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-50'
+                      : 'bg-[#007AFF] hover:bg-[#0284C7] border-white text-white cube-3d'
+                  }`}
+                >
+                  <Snowflake className="w-5 h-5" />
+                  <span className="text-[11px] font-black leading-none whitespace-nowrap">
+                    +5 Segundos
+                  </span>
+                </button>
+
+                {/* Power-Up 3: Double Stars 2x */}
+                <button
+                  type="button"
+                  disabled={hasAnswered || myPlayer.powerUpsUsed?.DOUBLE_STARS}
+                  onClick={() => {
+                    soundEngine.vibrate('powerup');
+                    soundEngine.playPowerUp();
+                    onUsePowerUp('DOUBLE_STARS');
+                  }}
+                  className={`min-h-[64px] p-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-transform active:scale-95 ${
+                    myPlayer.powerUpsUsed?.DOUBLE_STARS
+                      ? 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-50'
+                      : 'bg-[#F97316] hover:bg-[#EA580C] border-white text-white cube-3d'
+                  }`}
+                >
+                  <Sparkles className="w-5 h-5" />
+                  <span className="text-[11px] font-black leading-none whitespace-nowrap">
+                    Estrela 2x
+                  </span>
+                </button>
+              </div>
+            </div>
           </>
         )}
 
-        {/* STATE C: ROUND REVEAL */}
+        {/* STATE C: ROUND REVEAL (Kid-Safe Positive Reinforcement: "Sem Punições Severas") */}
         {isReveal && question && (
           <div
-            className={`flex-1 rounded-3xl p-5 border-2 flex flex-col justify-between text-center ${
+            className={`flex-1 rounded-3xl p-5 border-3 flex flex-col justify-between text-center ${
               isMyAnswerCorrect
-                ? 'bg-emerald-950/60 border-emerald-500'
-                : 'bg-rose-950/60 border-rose-500'
+                ? 'bg-[#16A34A]/90 border-white'
+                : 'bg-[#0F172A]/95 border-[#FFD600]'
             }`}
           >
             <div className="my-auto space-y-3">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-900/70 mx-auto">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-white/20 mx-auto">
                 {isMyAnswerCorrect ? (
-                  <CheckCircle2 className="w-9 h-9 text-emerald-400" />
+                  <CheckCircle2 className="w-10 h-10 text-[#FFD600]" />
                 ) : (
-                  <XCircle className="w-9 h-9 text-rose-400" />
+                  <Star className="w-10 h-10 text-[#FFD600]" />
                 )}
               </div>
 
               <h2 className="font-display text-2xl font-black text-white">
                 {isMyAnswerCorrect
-                  ? `Certa Resposta! +${myPlayer.lastPointsEarned} pts`
-                  : hasAnswered
-                  ? 'Quase lá! Tente na próxima'
-                  : 'Tempo Esgotado!'}
+                  ? `Muito Bem! +${myPlayer.lastPointsEarned} pts ⭐`
+                  : 'Boa tentativa! Tente de novo na próxima!'}
               </h2>
 
-              <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
-                <div className="text-xs text-slate-400">Resultado Correto</div>
-                <div className="font-mono text-2xl font-extrabold text-emerald-400 tabular-nums">
+              <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-white/20 space-y-1">
+                <div className="text-xs font-bold text-sky-300">Resposta dos Blocos</div>
+                <div className="font-display text-2xl font-black text-[#FFD600] tabular-nums">
                   {question.expression} = {question.correctAnswer}
                 </div>
-                <p className="text-xs text-slate-300 pt-1">{question.mentalMathTip}</p>
+                <p className="text-xs font-semibold text-white pt-1">{question.mentalMathTip}</p>
               </div>
             </div>
 
@@ -449,9 +571,9 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
               <button
                 type="button"
                 onClick={onNextRound}
-                className="w-full min-h-[48px] rounded-2xl bg-white text-slate-950 font-display font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform whitespace-nowrap"
+                className="cube-3d w-full min-h-[54px] rounded-2xl bg-[#FFD600] text-slate-950 font-display font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform whitespace-nowrap"
               >
-                <span>Próxima Rodada Agora</span>
+                <span>Próximo Desafio</span>
               </button>
             )}
           </div>
@@ -459,38 +581,37 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
 
         {/* STATE D: PAUSED */}
         {roomState.status === 'PAUSED' && (
-          <div className="flex-1 rounded-3xl bg-[#1E293B] border border-slate-700 p-6 flex flex-col items-center justify-center text-center space-y-3">
-            <h2 className="font-display text-xl font-bold text-amber-400">Show Pausado na TV</h2>
-            <p className="text-xs text-slate-300">
-              Aguarde a retomada da partida para responder.
+          <div className="flex-1 rounded-3xl bg-[#0F172A] border-2 border-[#FFD600] p-6 flex flex-col items-center justify-center text-center space-y-3">
+            <h2 className="font-display text-2xl font-black text-[#FFD600]">Jogo em Pausa</h2>
+            <p className="text-xs font-semibold text-sky-200">
+              Olhe para a tela da TV para continuar a brincadeira!
             </p>
           </div>
         )}
 
         {/* STATE E: GAME OVER */}
         {roomState.status === 'GAME_OVER' && (
-          <div className="flex-1 rounded-3xl bg-[#1E293B] border border-amber-500/40 p-5 flex flex-col justify-between text-center space-y-4">
+          <div className="flex-1 rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] p-5 flex flex-col justify-between text-center space-y-4">
             <div className="my-auto space-y-2">
-              <div className="text-xs font-semibold text-amber-400">Fim do Show!</div>
+              <div className="text-xs font-black text-[#FFD600] uppercase">Parabéns!</div>
               <h2 className="font-display text-3xl font-black text-white">
-                {myRank}º Lugar no Palco
+                {myRank}º Lugar · ⭐ {myPlayer.stars} Estrelas
               </h2>
-              <div className="font-mono text-2xl font-extrabold text-emerald-400 tabular-nums">
+              <div className="font-mono text-2xl font-black text-[#22C55E] tabular-nums">
                 {myPlayer.score} pontos
               </div>
-              <div className="text-xs text-slate-300 tabular-nums">
-                Acertos: {myPlayer.correctCount} de {roomState.settings.totalRounds} · Melhor
-                Sequência: {myPlayer.bestStreak}x
+              <div className="text-xs font-bold text-sky-200 tabular-nums">
+                Acertos: {myPlayer.correctCount} de {roomState.settings.totalRounds} atividades
               </div>
             </div>
 
             <button
               type="button"
               onClick={onRestartGame}
-              className="w-full min-h-[52px] rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-display font-bold text-base flex items-center justify-center gap-2 active:scale-95 transition-transform whitespace-nowrap"
+              className="cube-3d w-full min-h-[60px] rounded-3xl bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white font-display font-black text-lg flex items-center justify-center gap-2 active:scale-95 transition-transform whitespace-nowrap"
             >
               <RotateCcw className="w-5 h-5" />
-              <span>Jogar Novamente</span>
+              <span>Brincar de Novo!</span>
             </button>
           </div>
         )}

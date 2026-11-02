@@ -1,18 +1,23 @@
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private muted: boolean = false;
+  private voiceEnabled: boolean = true;
 
   constructor() {
     if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem('mathshow_muted');
-      this.muted = saved === 'true';
+      const savedMute = window.localStorage.getItem('mathshow_muted');
+      this.muted = savedMute === 'true';
+      const savedVoice = window.localStorage.getItem('mathshow_voice_enabled');
+      this.voiceEnabled = savedVoice !== 'false';
     }
   }
 
   private getContext(): AudioContext | null {
     if (this.muted || typeof window === 'undefined') return null;
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
       }
@@ -31,11 +36,87 @@ class SoundEngine {
     this.muted = !this.muted;
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('mathshow_muted', String(this.muted));
+      if (this.muted && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
     }
     if (!this.muted) {
       this.playTick();
     }
     return this.muted;
+  }
+
+  public isVoiceEnabled(): boolean {
+    return this.voiceEnabled;
+  }
+
+  public toggleVoice(): boolean {
+    this.voiceEnabled = !this.voiceEnabled;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('mathshow_voice_enabled', String(this.voiceEnabled));
+      if (!this.voiceEnabled && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
+    if (this.voiceEnabled && !this.muted) {
+      this.speak('Narrador de voz ativado!', true);
+    }
+    return this.voiceEnabled;
+  }
+
+  /**
+   * Narrador de Voz (Text-to-Speech) estilo Apresentador de TV em Português
+   */
+  public speak(text: string, interrupt = true) {
+    if (this.muted || !this.voiceEnabled || typeof window === 'undefined') return;
+    if (!('speechSynthesis' in window)) return;
+
+    try {
+      if (interrupt) {
+        window.speechSynthesis.cancel();
+      }
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'pt-BR';
+      utterance.rate = 1.04;
+      utterance.pitch = 1.1;
+
+      const voices = window.speechSynthesis.getVoices();
+      const ptVoice =
+        voices.find((v) => v.lang.toLowerCase().includes('pt-br')) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith('pt'));
+      if (ptVoice) {
+        utterance.voice = ptVoice;
+      }
+
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      // Ignore speech synthesis errors on restricted webviews
+    }
+  }
+
+  /**
+   * Vibração Háptica (Vibration API) para o Controle no Celular
+   */
+  public vibrate(pattern: 'tap' | 'powerup' | 'success' | 'encourage') {
+    if (typeof window === 'undefined' || !('vibrate' in navigator)) return;
+    try {
+      switch (pattern) {
+        case 'tap':
+          navigator.vibrate(35);
+          break;
+        case 'powerup':
+          navigator.vibrate([40, 50, 80]);
+          break;
+        case 'success':
+          navigator.vibrate([60, 50, 110]);
+          break;
+        case 'encourage':
+          navigator.vibrate([45, 70, 45]);
+          break;
+      }
+    } catch {
+      // Ignore on devices without vibration motor
+    }
   }
 
   public playPlayerJoin() {
@@ -81,6 +162,26 @@ class SoundEngine {
     osc.stop(now + 0.17);
   }
 
+  public playPowerUp() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const notes = [587.33, 783.99, 1046.5];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + i * 0.05);
+      gain.gain.setValueAtTime(0.15, now + i * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.05 + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.05);
+      osc.stop(now + i * 0.05 + 0.2);
+    });
+  }
+
   public playNewQuestion() {
     const ctx = this.getContext();
     if (!ctx) return;
@@ -108,10 +209,10 @@ class SoundEngine {
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = urgent ? 'sawtooth' : 'sine';
-    osc.frequency.setValueAtTime(urgent ? 880 : 660, now);
+    osc.type = urgent ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(urgent ? 780 : 620, now);
 
-    gain.gain.setValueAtTime(urgent ? 0.11 : 0.07, now);
+    gain.gain.setValueAtTime(urgent ? 0.1 : 0.06, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
 
     osc.connect(gain);
@@ -140,18 +241,19 @@ class SoundEngine {
         osc.stop(now + idx * 0.06 + 0.47);
       });
     } else {
-      const notes = [311.13, 277.18];
+      // Gentle encouraging two-note chime (Kid-Safe, no harsh buzzer)
+      const notes = [440, 392];
       notes.forEach((f, idx) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(f, now + idx * 0.18);
-        gain.gain.setValueAtTime(0.12, now + idx * 0.18);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.18 + 0.28);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(f, now + idx * 0.15);
+        gain.gain.setValueAtTime(0.11, now + idx * 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.15 + 0.25);
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.start(now + idx * 0.18);
-        osc.stop(now + idx * 0.18 + 0.3);
+        osc.start(now + idx * 0.15);
+        osc.stop(now + idx * 0.15 + 0.28);
       });
     }
   }

@@ -8,10 +8,12 @@ import {
   DifficultyLevel,
   GameMode,
   GameSettings,
+  LearningModuleId,
   MathQuestion,
   PLAYER_AVATARS,
-  PlayerState,
+  PowerUpType,
   RoomState,
+  VisualBlockGroup,
 } from './src/types/game.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -40,141 +42,126 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function buildAdditionSubtractionQuestion(
+function buildModuleQuestion(
   roundNumber: number,
   totalRounds: number,
-  difficulty: DifficultyLevel
+  difficulty: DifficultyLevel,
+  moduleId: LearningModuleId
 ): MathQuestion {
-  const isLightningRound = roundNumber >= totalRounds - 1;
-  // Progressive difficulty scaling across rounds
-  const progressRatio = (roundNumber - 1) / Math.max(1, totalRounds - 1);
+  const isLightningRound = roundNumber === totalRounds;
+  const maxSimple = difficulty === 'EASY' ? 5 : difficulty === 'MEDIUM' ? 9 : 12;
 
   let terms: number[] = [];
-  let operators: ('+' | '-')[] = [];
+  let operators: ('+' | '-' | '×' | '÷')[] = [];
   let correctAnswer = 0;
   let expression = '';
+  let promptText = '';
+  let speechText = '';
   let mentalMathTip = '';
-  let categoryLabel = 'Adição & Subtração';
+  let categoryLabel = '';
+  let visualBlocks: VisualBlockGroup[] = [];
 
-  if (difficulty === 'EASY') {
-    const maxVal = progressRatio < 0.5 ? 12 : 20;
-    const isAddition = Math.random() > 0.42;
-    if (isAddition) {
-      const a = randomInt(3, maxVal);
-      const b = randomInt(2, maxVal - 2);
-      correctAnswer = a + b;
-      terms = [a, b];
-      operators = ['+'];
-      expression = `${a} + ${b}`;
-      categoryLabel = 'Soma Rápida';
-      if (a + b >= 10 && a < 10) {
-        const toTen = 10 - a;
-        const rest = b - toTen;
-        mentalMathTip = `Complete 10 primeiro: ${a} + ${toTen} = 10, depois + ${rest} = ${correctAnswer}`;
-      } else {
-        mentalMathTip = `Contagem direta: ${Math.max(a, b)} somado com ${Math.min(a, b)} resulta em ${correctAnswer}`;
-      }
-    } else {
-      const a = randomInt(8, maxVal + 5);
-      const b = randomInt(2, a - 1);
-      correctAnswer = a - b;
-      terms = [a, b];
-      operators = ['-'];
-      expression = `${a} - ${b}`;
-      categoryLabel = 'Subtração Direta';
-      mentalMathTip = `Pense na soma inversa: ${b} + ${correctAnswer} = ${a}`;
-    }
-  } else if (difficulty === 'MEDIUM') {
-    const useThreeTerms = progressRatio >= 0.75;
-    if (useThreeTerms) {
-      const a = randomInt(15, 45);
-      const b = randomInt(10, 30);
-      const c = randomInt(5, 20);
-      correctAnswer = a + b - c;
-      terms = [a, b, c];
-      operators = ['+', '-'];
-      expression = `${a} + ${b} - ${c}`;
-      categoryLabel = 'Desafio Combinado';
-      mentalMathTip = `Passo 1: ${a} + ${b} = ${a + b} · Passo 2: ${a + b} - ${c} = ${correctAnswer}`;
-    } else {
-      const isAddition = Math.random() > 0.45;
-      if (isAddition) {
-        const a = randomInt(14, 58);
-        const b = randomInt(12, 42);
-        correctAnswer = a + b;
-        terms = [a, b];
-        operators = ['+'];
-        expression = `${a} + ${b}`;
-        categoryLabel = 'Soma de Dezenas';
-        const tensA = Math.floor(a / 10) * 10;
-        const tensB = Math.floor(b / 10) * 10;
-        const units = (a % 10) + (b % 10);
-        mentalMathTip = `Some as dezenas (${tensA} + ${tensB} = ${tensA + tensB}) e as unidades (${a % 10} + ${b % 10} = ${units}) → ${correctAnswer}`;
-      } else {
-        const a = randomInt(32, 95);
-        const b = randomInt(11, a - 8);
-        correctAnswer = a - b;
-        terms = [a, b];
-        operators = ['-'];
-        expression = `${a} - ${b}`;
-        categoryLabel = 'Subtração de Dezenas';
-        const tensB = Math.floor(b / 10) * 10;
-        const unitB = b % 10;
-        mentalMathTip = `Tire as dezenas (${a} - ${tensB} = ${a - tensB}) e depois as unidades (- ${unitB}) → ${correctAnswer}`;
-      }
-    }
+  if (moduleId === 'MODULE_1_NUMBERS') {
+    // Module 1: Conhecendo os Números (Missing blocks to reach target tower or counting blocks)
+    const target = randomInt(3, Math.min(10, maxSimple + 2));
+    const current = randomInt(1, target - 1);
+    correctAnswer = target - current;
+    terms = [current, correctAnswer];
+    operators = ['+'];
+    expression = `${current} + ? = ${target}`;
+    promptText = `Quantos blocos faltam para chegar no ${target}?`;
+    speechText = `Rodada ${roundNumber}. Temos ${current} blocos na mesa. Quantos blocos faltam para chegar no número ${target}?`;
+    categoryLabel = 'Módulo 1 · Conhecendo os Números';
+    mentalMathTip = `Já temos ${current} bloco(s). Contando mais ${correctAnswer} bloco(s), completamos a torre de ${target}!`;
+    visualBlocks = [
+      { count: current, colorHex: '#007AFF', label: `Temos ${current}` },
+      { count: target, colorHex: '#FFD600', label: `Meta: ${target}` },
+    ];
+  } else if (moduleId === 'MODULE_2_ADDITION') {
+    // Module 2: Somando com Blocos (+)
+    const maxTerm = difficulty === 'EASY' ? 8 : difficulty === 'MEDIUM' ? 25 : 65;
+    const a = randomInt(2, maxTerm);
+    const b = randomInt(2, maxTerm);
+    correctAnswer = a + b;
+    terms = [a, b];
+    operators = ['+'];
+    expression = `${a} + ${b}`;
+    promptText = `Qual é a soma dos blocos ${a} mais ${b}?`;
+    speechText = `Rodada ${roundNumber}. Quanto é ${a} mais ${b}?`;
+    categoryLabel = 'Módulo 2 · Somando com Blocos';
+    mentalMathTip = `Empilhando ${a} com ${b}, chegamos ao total de ${correctAnswer}!`;
+    visualBlocks = [
+      { count: Math.min(a, 10), colorHex: '#22C55E', label: `${a}` },
+      { count: Math.min(b, 10), colorHex: '#007AFF', label: `+ ${b}` },
+    ];
+  } else if (moduleId === 'MODULE_3_SUBTRACTION') {
+    // Module 3: Subtraindo e Desmontando (-)
+    const maxTop = difficulty === 'EASY' ? 12 : difficulty === 'MEDIUM' ? 40 : 95;
+    const a = randomInt(5, maxTop);
+    const b = randomInt(2, a - 1);
+    correctAnswer = a - b;
+    terms = [a, b];
+    operators = ['-'];
+    expression = `${a} - ${b}`;
+    promptText = `Se tirarmos ${b} blocos de ${a}, quantos ficam?`;
+    speechText = `Rodada ${roundNumber}. Quanto é ${a} menos ${b}?`;
+    categoryLabel = 'Módulo 3 · Subtraindo e Desmontando';
+    mentalMathTip = `Começando com ${a} e desmontando ${b} bloco(s), restam ${correctAnswer} (${b} + ${correctAnswer} = ${a}).`;
+    visualBlocks = [
+      { count: Math.min(a, 10), colorHex: '#F97316', label: `Torre: ${a}` },
+      { count: Math.min(b, 10), colorHex: '#EF4444', label: `Tirar: -${b}` },
+    ];
   } else {
-    // HARD: Larger 2-digit / 3-digit mental addition & subtraction or 3-term chains
-    const useThreeTerms = Math.random() > 0.35;
-    if (useThreeTerms) {
-      const a = randomInt(35, 90);
-      const b = randomInt(18, 55);
-      const op1: '+' | '-' = Math.random() > 0.4 ? '+' : '-';
-      const firstResult = op1 === '+' ? a + b : a - b;
-      const op2: '+' | '-' = op1 === '+' ? '-' : '+';
-      const c = op2 === '-' ? randomInt(12, Math.max(15, firstResult - 10)) : randomInt(14, 48);
-      correctAnswer = op2 === '+' ? firstResult + c : firstResult - c;
-      terms = [a, b, c];
-      operators = [op1, op2];
-      expression = `${a} ${op1} ${b} ${op2} ${c}`;
-      categoryLabel = 'Cálculo Mestre';
-      mentalMathTip = `Resolva da esquerda para a direita: (${a} ${op1} ${b} = ${firstResult}) ${op2} ${c} = ${correctAnswer}`;
+    // Module 4: Desafio dos Símbolos (×, ÷, +, -)
+    const isMult = Math.random() > 0.45;
+    if (isMult) {
+      const maxFactor = difficulty === 'EASY' ? 5 : difficulty === 'MEDIUM' ? 9 : 12;
+      const a = randomInt(2, maxFactor);
+      const b = randomInt(2, maxFactor);
+      correctAnswer = a * b;
+      terms = [a, b];
+      operators = ['×'];
+      expression = `${a} × ${b}`;
+      promptText = `${a} grupos de ${b} blocos formam quantos blocos?`;
+      speechText = `Desafio dos símbolos! Quanto é ${a} vezes ${b}?`;
+      categoryLabel = 'Módulo 4 · Desafio dos Símbolos';
+      mentalMathTip = `${a} grupos com ${b} unidades em cada grupo somam ${correctAnswer}!`;
+      visualBlocks = [
+        { count: Math.min(a, 8), colorHex: '#A855F7', label: `${a} grupos` },
+        { count: Math.min(b, 8), colorHex: '#FFD600', label: `× ${b} blocos` },
+      ];
     } else {
-      const isAddition = Math.random() > 0.5;
-      if (isAddition) {
-        const a = randomInt(45, 145);
-        const b = randomInt(28, 95);
-        correctAnswer = a + b;
-        terms = [a, b];
-        operators = ['+'];
-        expression = `${a} + ${b}`;
-        categoryLabel = 'Super Soma';
-        mentalMathTip = `Decomponha: ${a} + ${Math.floor(b / 10) * 10} = ${a + Math.floor(b / 10) * 10}, mais ${b % 10} = ${correctAnswer}`;
-      } else {
-        const a = randomInt(75, 180);
-        const b = randomInt(29, a - 15);
-        correctAnswer = a - b;
-        terms = [a, b];
-        operators = ['-'];
-        expression = `${a} - ${b}`;
-        categoryLabel = 'Super Subtração';
-        mentalMathTip = `Arredonde para facilitar: ${a} - ${Math.ceil(b / 10) * 10} + ${Math.ceil(b / 10) * 10 - b} = ${correctAnswer}`;
-      }
+      const maxDiv = difficulty === 'EASY' ? 5 : difficulty === 'MEDIUM' ? 8 : 10;
+      const divisor = randomInt(2, maxDiv);
+      const quotient = randomInt(2, maxDiv);
+      const dividend = divisor * quotient;
+      correctAnswer = quotient;
+      terms = [dividend, divisor];
+      operators = ['÷'];
+      expression = `${dividend} ÷ ${divisor}`;
+      promptText = `Dividindo ${dividend} blocos em ${divisor} partes iguais:`;
+      speechText = `Desafio dos símbolos! Quanto é ${dividend} dividido por ${divisor}?`;
+      categoryLabel = 'Módulo 4 · Desafio dos Símbolos';
+      mentalMathTip = `Porque ${divisor} × ${quotient} é igual a ${dividend}!`;
+      visualBlocks = [
+        { count: Math.min(dividend, 10), colorHex: '#A855F7', label: `Total: ${dividend}` },
+        { count: Math.min(divisor, 8), colorHex: '#EC4899', label: `÷ ${divisor} partes` },
+      ];
     }
   }
 
-  // Generate 3 plausible distractors (e.g., off by 1, 2, 10, or sign mistake)
+  // Generate 3 plausible kid-friendly distractors
   const distractors = new Set<number>();
-  const candidateOffsets = [1, -1, 2, -2, 10, -10, 3, -3, 5, -5, 11, -9, 4, -4];
+  const candidateOffsets = [1, -1, 2, -2, 3, -3, 5, -4, 4, 6];
   for (const offset of candidateOffsets.sort(() => Math.random() - 0.5)) {
     const val = correctAnswer + offset;
-    if (val >= 0 && val !== correctAnswer) {
+    if (val >= 1 && val !== correctAnswer) {
       distractors.add(val);
     }
     if (distractors.size >= 3) break;
   }
   while (distractors.size < 3) {
-    const fallback = Math.max(0, correctAnswer + randomInt(-12, 12));
+    const fallback = Math.max(1, correctAnswer + randomInt(1, 7));
     if (fallback !== correctAnswer) distractors.add(fallback);
   }
 
@@ -188,13 +175,16 @@ function buildAdditionSubtractionQuestion(
     roundNumber,
     totalRounds,
     expression,
+    promptText,
+    speechText,
     terms,
     operators,
     correctAnswer,
     correctIndex,
     options,
     mentalMathTip,
-    categoryLabel: isLightningRound ? `⚡ Rodada Relâmpago (Pontos 2x)` : categoryLabel,
+    categoryLabel: isLightningRound ? `⭐ Rodada Estrela em Dobro (2x)` : categoryLabel,
+    visualBlocks,
     startedAt: Date.now(),
     durationMs: 15000,
     isLightningRound,
@@ -206,8 +196,9 @@ function createRoom(initialStatus: 'TITLE_MENU' | 'LOBBY' = 'TITLE_MENU'): Inter
   const defaultSettings: GameSettings = {
     mode: 'COMPETITIVE',
     difficulty: 'EASY',
-    totalRounds: 8,
-    timePerQuestionSec: 15,
+    moduleId: 'MODULE_2_ADDITION',
+    totalRounds: 6,
+    timePerQuestionSec: 18,
   };
 
   const room: InternalRoom = {
@@ -218,15 +209,16 @@ function createRoom(initialStatus: 'TITLE_MENU' | 'LOBBY' = 'TITLE_MENU'): Inter
       players: [],
       currentQuestion: null,
       teamScore: 0,
-      teamTarget: 5000,
+      teamTarget: 3600,
       pausedRemainingMs: null,
+      lastPowerUpAnnouncement: null,
       lastUpdatedAt: Date.now(),
     },
     clients: new Set(),
     playerSockets: new Map(),
     roundTimer: null,
     revealTimer: null,
-    questionRemainingMs: 15000,
+    questionRemainingMs: 18000,
   };
 
   rooms.set(code, room);
@@ -263,10 +255,11 @@ function startNextQuestion(room: InternalRoom, nextRoundNumber: number) {
 
   const { settings } = room.state;
   const durationMs = settings.timePerQuestionSec * 1000;
-  const question = buildAdditionSubtractionQuestion(
+  const question = buildModuleQuestion(
     nextRoundNumber,
     settings.totalRounds,
-    settings.difficulty
+    settings.difficulty,
+    settings.moduleId
   );
   question.durationMs = durationMs;
   question.startedAt = Date.now();
@@ -274,11 +267,14 @@ function startNextQuestion(room: InternalRoom, nextRoundNumber: number) {
   room.state.status = 'QUESTION_ACTIVE';
   room.state.currentQuestion = question;
   room.state.pausedRemainingMs = null;
+  room.state.lastPowerUpAnnouncement = null;
 
   for (const p of room.state.players) {
     p.currentAnswer = null;
     p.answerTimeMs = null;
     p.lastPointsEarned = 0;
+    p.eliminatedOptions = [];
+    p.doubleStarsActive = false;
   }
 
   broadcastRoomState(room);
@@ -295,22 +291,23 @@ function revealCurrentRound(room: InternalRoom) {
 
   room.state.status = 'ROUND_REVEAL';
 
-  // Calculate scores for each player
   let roundTeamGain = 0;
   for (const p of room.state.players) {
     if (p.currentAnswer === question.correctIndex) {
       const answerMs = p.answerTimeMs ?? question.durationMs;
       const speedRatio = Math.max(0, 1 - answerMs / question.durationMs);
       const basePoints = 500;
-      const speedBonus = Math.round(speedRatio * 500);
+      const speedBonus = Math.round(speedRatio * 400);
       p.streak += 1;
       if (p.streak > p.bestStreak) p.bestStreak = p.streak;
       const streakBonus = Math.min(300, (p.streak - 1) * 100);
-      const multiplier = question.isLightningRound ? 2 : 1;
-      const earned = (basePoints + speedBonus + streakBonus) * multiplier;
+      const lightningMult = question.isLightningRound ? 2 : 1;
+      const powerUpMult = p.doubleStarsActive ? 2 : 1;
+      const earned = (basePoints + speedBonus + streakBonus) * lightningMult * powerUpMult;
 
       p.lastPointsEarned = earned;
       p.score += earned;
+      p.stars += p.doubleStarsActive ? 2 : 1;
       p.correctCount += 1;
       roundTeamGain += earned;
     } else {
@@ -322,7 +319,6 @@ function revealCurrentRound(room: InternalRoom) {
   room.state.teamScore += roundTeamGain;
   broadcastRoomState(room);
 
-  // Automatically advance after 5.5 seconds of dramatic reveal
   room.revealTimer = setTimeout(() => {
     if (question.roundNumber >= room.state.settings.totalRounds) {
       room.state.status = 'GAME_OVER';
@@ -330,7 +326,7 @@ function revealCurrentRound(room: InternalRoom) {
     } else {
       startNextQuestion(room, question.roundNumber + 1);
     }
-  }, 5500);
+  }, 5800);
 }
 
 async function startServer() {
@@ -340,7 +336,6 @@ async function startServer() {
   const server = http.createServer(app);
   const wss = new WebSocketServer({ server });
 
-  // REST helper to check or create room
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, activeRooms: rooms.size });
   });
@@ -418,7 +413,7 @@ async function startServer() {
                 ws.send(
                   JSON.stringify({
                     type: 'room:error',
-                    message: 'Esta sala já está com os 4 pedestais ocupados!',
+                    message: 'Esta sala já está com os 4 blocos de jogadores ocupados!',
                   })
                 );
                 return;
@@ -435,6 +430,7 @@ async function startServer() {
                 color: avatarMeta.color,
                 slotIndex,
                 score: 0,
+                stars: 0,
                 streak: 0,
                 bestStreak: 0,
                 correctCount: 0,
@@ -445,6 +441,13 @@ async function startServer() {
                 lastPointsEarned: 0,
                 isConnected: true,
                 isHost: slotIndex === 0,
+                powerUpsUsed: {
+                  FIFTY_FIFTY: false,
+                  FREEZE_TIME: false,
+                  DOUBLE_STARS: false,
+                },
+                eliminatedOptions: [],
+                doubleStarsActive: false,
               };
               room.state.players.push(existing);
             }
@@ -452,12 +455,10 @@ async function startServer() {
             currentPlayerId = existing.id;
             room.playerSockets.set(existing.id, ws);
 
-            // Ensure at least one connected player is host
             if (!room.state.players.some((p) => p.isHost && p.isConnected)) {
               existing.isHost = true;
             }
 
-            // If TV was on TITLE_MENU, move to LOBBY automatically when a phone connects
             if (room.state.status === 'TITLE_MENU') {
               room.state.status = 'LOBBY';
             }
@@ -492,25 +493,25 @@ async function startServer() {
             if (msg.difficulty === 'EASY' || msg.difficulty === 'MEDIUM' || msg.difficulty === 'HARD') {
               s.difficulty = msg.difficulty as DifficultyLevel;
             }
-            if (typeof msg.totalRounds === 'number' && msg.totalRounds >= 5 && msg.totalRounds <= 15) {
+            if (
+              msg.moduleId === 'MODULE_1_NUMBERS' ||
+              msg.moduleId === 'MODULE_2_ADDITION' ||
+              msg.moduleId === 'MODULE_3_SUBTRACTION' ||
+              msg.moduleId === 'MODULE_4_SYMBOLS'
+            ) {
+              s.moduleId = msg.moduleId as LearningModuleId;
+            }
+            if (typeof msg.totalRounds === 'number' && msg.totalRounds >= 4 && msg.totalRounds <= 15) {
               s.totalRounds = msg.totalRounds;
             }
-            if (
-              typeof msg.timePerQuestionSec === 'number' &&
-              msg.timePerQuestionSec >= 10 &&
-              msg.timePerQuestionSec <= 30
-            ) {
-              s.timePerQuestionSec = msg.timePerQuestionSec;
-            }
             const activePlayers = Math.max(1, currentRoom.state.players.length);
-            currentRoom.state.teamTarget = activePlayers * s.totalRounds * 600;
+            currentRoom.state.teamTarget = activePlayers * s.totalRounds * 550;
             broadcastRoomState(currentRoom);
             break;
           }
 
           case 'game:start': {
             if (!currentRoom) return;
-            // If no phone players joined yet and TV remote presses Start, create a local TV Player 1
             if (currentRoom.state.players.length === 0) {
               const avatar = PLAYER_AVATARS[0];
               currentRoom.state.players.push({
@@ -520,6 +521,7 @@ async function startServer() {
                 color: avatar.color,
                 slotIndex: 0,
                 score: 0,
+                stars: 0,
                 streak: 0,
                 bestStreak: 0,
                 correctCount: 0,
@@ -530,17 +532,24 @@ async function startServer() {
                 lastPointsEarned: 0,
                 isConnected: true,
                 isHost: true,
+                powerUpsUsed: {
+                  FIFTY_FIFTY: false,
+                  FREEZE_TIME: false,
+                  DOUBLE_STARS: false,
+                },
+                eliminatedOptions: [],
+                doubleStarsActive: false,
               });
             }
 
-            // Reset scores for a fresh show
             currentRoom.state.teamScore = 0;
             const activePlayers = Math.max(1, currentRoom.state.players.length);
             currentRoom.state.teamTarget =
-              activePlayers * currentRoom.state.settings.totalRounds * 600;
+              activePlayers * currentRoom.state.settings.totalRounds * 550;
 
             for (const p of currentRoom.state.players) {
               p.score = 0;
+              p.stars = 0;
               p.streak = 0;
               p.bestStreak = 0;
               p.correctCount = 0;
@@ -549,9 +558,64 @@ async function startServer() {
               p.currentAnswer = null;
               p.answerTimeMs = null;
               p.lastPointsEarned = 0;
+              p.powerUpsUsed = {
+                FIFTY_FIFTY: false,
+                FREEZE_TIME: false,
+                DOUBLE_STARS: false,
+              };
+              p.eliminatedOptions = [];
+              p.doubleStarsActive = false;
             }
 
             startNextQuestion(currentRoom, 1);
+            break;
+          }
+
+          case 'player:use_powerup': {
+            if (!currentRoom || currentRoom.state.status !== 'QUESTION_ACTIVE') return;
+            const question = currentRoom.state.currentQuestion;
+            if (!question) return;
+
+            const targetId = String(msg.playerId || currentPlayerId || '');
+            const player =
+              currentRoom.state.players.find((p) => p.id === targetId) ||
+              currentRoom.state.players[0];
+
+            const powerUp = msg.powerUp as PowerUpType;
+            if (!player || !powerUp || player.powerUpsUsed[powerUp] || player.currentAnswer !== null) {
+              return;
+            }
+
+            player.powerUpsUsed[powerUp] = true;
+
+            if (powerUp === 'FIFTY_FIFTY') {
+              // Remove 2 wrong options exclusively for this player
+              const wrongIndices = [0, 1, 2, 3]
+                .filter((idx) => idx !== question.correctIndex)
+                .sort(() => Math.random() - 0.5);
+              player.eliminatedOptions = wrongIndices.slice(0, 2);
+              currentRoom.state.lastPowerUpAnnouncement = `${player.name} usou Ajuda 50/50!`;
+            } else if (powerUp === 'FREEZE_TIME') {
+              // Add +5 seconds to current question timer
+              const bonusMs = 5000;
+              question.durationMs += bonusMs;
+              const elapsed = Date.now() - question.startedAt;
+              const remaining = Math.max(1000, question.durationMs - elapsed);
+              if (currentRoom.roundTimer) {
+                clearTimeout(currentRoom.roundTimer);
+              }
+              currentRoom.roundTimer = setTimeout(() => {
+                if (currentRoom && currentRoom.state.status === 'QUESTION_ACTIVE') {
+                  revealCurrentRound(currentRoom);
+                }
+              }, remaining);
+              currentRoom.state.lastPowerUpAnnouncement = `${player.name} congelou o relógio (+5s)!`;
+            } else if (powerUp === 'DOUBLE_STARS') {
+              player.doubleStarsActive = true;
+              currentRoom.state.lastPowerUpAnnouncement = `${player.name} ativou Estrela em Dobro (2x)!`;
+            }
+
+            broadcastRoomState(currentRoom);
             break;
           }
 
@@ -569,6 +633,7 @@ async function startServer() {
 
             const optionIndex = Number(msg.optionIndex);
             if (isNaN(optionIndex) || optionIndex < 0 || optionIndex > 3) return;
+            if (player.eliminatedOptions.includes(optionIndex)) return;
 
             const elapsed = Math.max(100, Date.now() - question.startedAt);
             player.currentAnswer = optionIndex;
@@ -578,7 +643,6 @@ async function startServer() {
 
             broadcastRoomState(currentRoom);
 
-            // Check if all connected players have answered
             const connectedPlayers = currentRoom.state.players.filter((p) => p.isConnected);
             const allAnswered =
               connectedPlayers.length > 0 &&
@@ -607,7 +671,7 @@ async function startServer() {
               currentRoom.state.status = 'GAME_OVER';
               broadcastRoomState(currentRoom);
             } else {
-              startNextQuestion(currentRoom, q.roundNumber + 1);
+              startNextQuestion(roomOrCurrent(currentRoom), q.roundNumber + 1);
             }
             break;
           }
@@ -640,12 +704,21 @@ async function startServer() {
             currentRoom.state.status = 'LOBBY';
             currentRoom.state.currentQuestion = null;
             currentRoom.state.teamScore = 0;
+            currentRoom.state.lastPowerUpAnnouncement = null;
             for (const p of currentRoom.state.players) {
               p.score = 0;
+              p.stars = 0;
               p.streak = 0;
               p.currentAnswer = null;
               p.answerTimeMs = null;
               p.lastPointsEarned = 0;
+              p.powerUpsUsed = {
+                FIFTY_FIFTY: false,
+                FREEZE_TIME: false,
+                DOUBLE_STARS: false,
+              };
+              p.eliminatedOptions = [];
+              p.doubleStarsActive = false;
             }
             broadcastRoomState(currentRoom);
             break;
@@ -693,8 +766,12 @@ async function startServer() {
 
   const PORT = 3000;
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`MathShow TV Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Jogo de Matemática TV Server running on http://0.0.0.0:${PORT}`);
   });
+}
+
+function roomOrCurrent(r: InternalRoom): InternalRoom {
+  return r;
 }
 
 startServer();

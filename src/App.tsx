@@ -4,7 +4,13 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DifficultyLevel, GameMode, RoomState } from './types/game.ts';
+import {
+  DifficultyLevel,
+  GameMode,
+  LearningModuleId,
+  PowerUpType,
+  RoomState,
+} from './types/game.ts';
 import { FireTvStageView } from './components/FireTvStageView.tsx';
 import { MobileControllerView } from './components/MobileControllerView.tsx';
 import { soundEngine } from './utils/sound.ts';
@@ -19,7 +25,6 @@ function getOrCreatePlayerId(storageKey: string): string {
 }
 
 export default function App() {
-  // Detect if opened via QR Code on a smartphone (`?room=1234` or `?role=controller`)
   const urlParams =
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialRoomParam = urlParams?.get('room') || '';
@@ -45,6 +50,7 @@ export default function App() {
 
   const wsRef = useRef<WebSocket | null>(null);
   const prevStatusRef = useRef<string>('');
+  const prevQuestionIdRef = useRef<string>('');
   const prevPlayersCountRef = useRef<number>(0);
   const prevAnsweredCountRef = useRef<number>(0);
 
@@ -99,13 +105,18 @@ export default function App() {
             const nextState: RoomState = data.state;
             window.sessionStorage.setItem('mathshow_room_code', nextState.code);
 
-            // Trigger audio & visual stage effects on state transitions
+            // Player joined celebration + Narrator welcome
             if (nextState.players.length > prevPlayersCountRef.current) {
+              const newest = nextState.players[nextState.players.length - 1];
               soundEngine.playPlayerJoin();
               setBurstTrigger((c) => c + 1);
+              if (newest) {
+                soundEngine.speak(`${newest.name} entrou no jogo!`, false);
+              }
             }
             prevPlayersCountRef.current = nextState.players.length;
 
+            // Player locked in answer
             const answeredNow = nextState.players.filter((p) => p.currentAnswer !== null).length;
             if (
               nextState.status === 'QUESTION_ACTIVE' &&
@@ -116,22 +127,49 @@ export default function App() {
             }
             prevAnsweredCountRef.current = answeredNow;
 
+            // New Question Spoken Narration (Text-to-Speech TV Presenter)
+            if (
+              nextState.status === 'QUESTION_ACTIVE' &&
+              nextState.currentQuestion &&
+              nextState.currentQuestion.id !== prevQuestionIdRef.current
+            ) {
+              prevQuestionIdRef.current = nextState.currentQuestion.id;
+              soundEngine.playNewQuestion();
+              soundEngine.speak(nextState.currentQuestion.speechText, true);
+            }
+
+            // Round Reveal & Victory Transitions
             if (nextState.status !== prevStatusRef.current) {
-              if (nextState.status === 'QUESTION_ACTIVE') {
-                soundEngine.playNewQuestion();
-              } else if (nextState.status === 'ROUND_REVEAL') {
+              if (nextState.status === 'ROUND_REVEAL') {
                 const q = nextState.currentQuestion;
                 const anyRight = Boolean(
                   q && nextState.players.some((p) => p.currentAnswer === q.correctIndex)
                 );
                 soundEngine.playRoundReveal(anyRight);
+                soundEngine.vibrate(anyRight ? 'success' : 'encourage');
                 setShakeTrigger((s) => s + 1);
                 if (anyRight) {
                   setBurstTrigger((c) => c + 1);
                 }
+                if (q) {
+                  soundEngine.speak(
+                    anyRight
+                      ? `Muito bem! A resposta certa é ${q.correctAnswer}!`
+                      : `A resposta certa é ${q.correctAnswer}. Vamos tentar a próxima!`,
+                    true
+                  );
+                }
               } else if (nextState.status === 'GAME_OVER') {
                 soundEngine.playVictoryFanfare();
+                soundEngine.vibrate('success');
                 setBurstTrigger((c) => c + 1);
+                const sorted = [...nextState.players].sort((a, b) => b.score - a.score);
+                if (sorted[0]) {
+                  soundEngine.speak(
+                    `Fim do jogo! Parabéns ${sorted[0].name} e a todos os participantes!`,
+                    true
+                  );
+                }
               }
               prevStatusRef.current = nextState.status;
             }
@@ -188,8 +226,24 @@ export default function App() {
     [sendWsMessage, mobilePlayerId]
   );
 
+  const handleUsePowerUp = useCallback(
+    (powerUp: PowerUpType, customPlayerId?: string) => {
+      sendWsMessage({
+        type: 'player:use_powerup',
+        powerUp,
+        playerId: customPlayerId || mobilePlayerId,
+      });
+    },
+    [sendWsMessage, mobilePlayerId]
+  );
+
   const handleConfigureGame = useCallback(
-    (config: { mode?: GameMode; difficulty?: DifficultyLevel; totalRounds?: number }) => {
+    (config: {
+      mode?: GameMode;
+      difficulty?: DifficultyLevel;
+      moduleId?: LearningModuleId;
+      totalRounds?: number;
+    }) => {
       sendWsMessage({
         type: 'game:configure',
         ...config,
@@ -230,6 +284,7 @@ export default function App() {
         errorMessage={errorMessage}
         onJoinRoom={(code, name, avatarId) => handleJoinRoom(code, name, avatarId, mobilePlayerId)}
         onSelectAnswer={(idx) => handleSelectAnswer(idx, mobilePlayerId)}
+        onUsePowerUp={(p) => handleUsePowerUp(p, mobilePlayerId)}
         onConfigureGame={handleConfigureGame}
         onStartGame={handleStartGame}
         onRestartGame={handleRestartGame}
@@ -242,21 +297,22 @@ export default function App() {
     );
   }
 
-  // Fallback skeleton while room is being created (usually < 50ms)
   const effectiveRoomState: RoomState = roomState || {
     code: '----',
     status: 'TITLE_MENU',
     settings: {
       mode: 'COMPETITIVE',
       difficulty: 'EASY',
-      totalRounds: 8,
-      timePerQuestionSec: 15,
+      moduleId: 'MODULE_2_ADDITION',
+      totalRounds: 6,
+      timePerQuestionSec: 18,
     },
     players: [],
     currentQuestion: null,
     teamScore: 0,
-    teamTarget: 4800,
+    teamTarget: 3600,
     pausedRemainingMs: null,
+    lastPowerUpAnnouncement: null,
     lastUpdatedAt: Date.now(),
   };
 
@@ -277,6 +333,7 @@ export default function App() {
       simError={errorMessage}
       onSimJoin={(code, name, avatarId) => handleJoinRoom(code, name, avatarId, simPlayerId)}
       onSimAnswer={(idx) => handleSelectAnswer(idx, simPlayerId)}
+      onSimUsePowerUp={(p) => handleUsePowerUp(p, simPlayerId)}
     />
   );
 }
