@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import {
+  createEmptyOperationStats,
+  CustomEquationItem,
   DifficultyLevel,
   evaluatePlayerMedals,
   GameMode,
@@ -58,7 +60,9 @@ function buildModuleQuestion(
   roundNumber: number,
   totalRounds: number,
   difficulty: DifficultyLevel,
-  moduleId: LearningModuleId
+  moduleId: LearningModuleId,
+  customQuestions?: CustomEquationItem[],
+  useCustomQuestions?: boolean
 ): MathQuestion {
   const isLightningRound = roundNumber === totalRounds;
   const maxSimple = difficulty === 'EASY' ? 5 : difficulty === 'MEDIUM' ? 9 : 12;
@@ -75,7 +79,47 @@ function buildModuleQuestion(
   let categoryLabel = '';
   let visualBlocks: VisualBlockGroup[] = [];
 
-  if (moduleId === 'MODULE_1_NUMBERS') {
+  if (useCustomQuestions && customQuestions && customQuestions.length > 0) {
+    const custom = customQuestions[(roundNumber - 1) % customQuestions.length];
+    const a = custom.termA;
+    const b = custom.termB;
+    const op = custom.operator;
+    correctAnswer = custom.correctAnswer;
+    terms = [a, b];
+    operators = [op];
+    equationFormat = 'STANDARD_RESULT';
+    expression = `${a} ${op} ${b}`;
+    categoryLabel = 'Modo Professor · Partida Personalizada';
+    if (op === '+') {
+      promptText = `Desafio Personalizado: Qual é a soma de ${a} mais ${b}?`;
+      mentalMathTip = `${a} + ${b} = ${correctAnswer}`;
+      visualBlocks = [
+        { count: Math.min(a, 10), colorHex: '#22C55E', label: `${a}` },
+        { count: Math.min(b, 10), colorHex: '#007AFF', label: `+ ${b}` },
+      ];
+    } else if (op === '-') {
+      promptText = `Desafio Personalizado: Quanto é ${a} menos ${b}?`;
+      mentalMathTip = `${a} - ${b} = ${correctAnswer}`;
+      visualBlocks = [
+        { count: Math.min(a, 10), colorHex: '#F97316', label: `${a}` },
+        { count: Math.min(b, 10), colorHex: '#EF4444', label: `- ${b}` },
+      ];
+    } else if (op === '×') {
+      promptText = `Modo Professor: Quanto é ${a} vezes ${b}?`;
+      mentalMathTip = `${a} × ${b} = ${correctAnswer}`;
+      visualBlocks = [
+        { count: Math.min(a, 8), colorHex: '#A855F7', label: `${a} grupos` },
+        { count: Math.min(b, 8), colorHex: '#FFD600', label: `× ${b} blocos` },
+      ];
+    } else {
+      promptText = `Modo Professor: Quanto é ${a} dividido por ${b}?`;
+      mentalMathTip = `${a} ÷ ${b} = ${correctAnswer}`;
+      visualBlocks = [
+        { count: Math.min(a, 10), colorHex: '#A855F7', label: `Total: ${a}` },
+        { count: Math.min(b, 8), colorHex: '#EC4899', label: `÷ ${b} partes` },
+      ];
+    }
+  } else if (moduleId === 'MODULE_1_NUMBERS') {
     // Module 1: Conhecendo os Números (e.g., 3 + [ ? ] = 4)
     const target = randomInt(3, Math.min(10, maxSimple + 2));
     const current = randomInt(1, target - 1);
@@ -219,6 +263,8 @@ function createRoom(initialStatus: 'TITLE_MENU' | 'LOBBY' = 'TITLE_MENU'): Inter
     moduleId: 'MODULE_1_NUMBERS',
     totalRounds: 6,
     timePerQuestionSec: 18,
+    useCustomQuestions: false,
+    customQuestions: [],
   };
 
   const room: InternalRoom = {
@@ -318,7 +364,9 @@ function startNextQuestion(room: InternalRoom, nextRoundNumber: number) {
     nextRoundNumber,
     settings.totalRounds,
     settings.difficulty,
-    settings.moduleId
+    settings.moduleId,
+    settings.customQuestions,
+    settings.useCustomQuestions
   );
   question.durationMs = durationMs;
   question.startedAt = Date.now();
@@ -354,9 +402,17 @@ function revealCurrentRound(room: InternalRoom) {
   question.revealStartedAt = Date.now();
   question.revealDurationMs = revealDurationMs;
 
+  const currentOp = question.operators?.[0] || '+';
+
   let roundTeamGain = 0;
   for (const p of room.state.players) {
+    if (!p.operationStats) {
+      p.operationStats = createEmptyOperationStats();
+    }
+    p.operationStats[currentOp].total += 1;
+
     if (p.currentAnswer === question.correctIndex) {
+      p.operationStats[currentOp].correct += 1;
       const answerMs = p.answerTimeMs ?? question.durationMs;
       const speedRatio = Math.max(0, 1 - answerMs / question.durationMs);
       const basePoints = 500;
@@ -509,6 +565,7 @@ async function startServer() {
                 doubleStarsActive: false,
                 continueChoice: 'PENDING',
                 medals: [],
+                operationStats: createEmptyOperationStats(),
               };
               room.state.players.push(existing);
             }
@@ -631,6 +688,24 @@ async function startServer() {
             break;
           }
 
+          case 'admin:set_custom_questions': {
+            if (!currentRoom) return;
+            const customList = Array.isArray(msg.customQuestions)
+              ? (msg.customQuestions as CustomEquationItem[])
+              : [];
+            const useCustom = Boolean(msg.useCustomQuestions) && customList.length > 0;
+            currentRoom.state.settings.customQuestions = customList;
+            currentRoom.state.settings.useCustomQuestions = useCustom;
+            if (useCustom && customList.length > 0) {
+              currentRoom.state.settings.totalRounds = Math.min(15, Math.max(1, customList.length));
+              currentRoom.state.lastPowerUpAnnouncement = `Modo Professor ativado com ${customList.length} conta(s) personalizada(s)!`;
+            } else {
+              currentRoom.state.lastPowerUpAnnouncement = `Modo Professor desativado. Usando módulos padrão.`;
+            }
+            broadcastRoomState(currentRoom);
+            break;
+          }
+
           case 'game:set_status': {
             if (!currentRoom) return;
             if (msg.status === 'LOBBY' || msg.status === 'TITLE_MENU') {
@@ -659,7 +734,7 @@ async function startServer() {
             ) {
               s.moduleId = msg.moduleId as LearningModuleId;
             }
-            if (typeof msg.totalRounds === 'number' && msg.totalRounds >= 4 && msg.totalRounds <= 15) {
+            if (typeof msg.totalRounds === 'number' && msg.totalRounds >= 1 && msg.totalRounds <= 15) {
               s.totalRounds = msg.totalRounds;
             }
             const activePlayers = Math.max(1, currentRoom.state.players.length);
@@ -699,6 +774,7 @@ async function startServer() {
                 doubleStarsActive: false,
                 continueChoice: 'PENDING',
                 medals: [],
+                operationStats: createEmptyOperationStats(),
               });
             }
 

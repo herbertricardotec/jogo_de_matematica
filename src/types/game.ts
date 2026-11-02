@@ -71,12 +71,40 @@ export const LEARNING_MODULES: LearningModuleMeta[] = [
   },
 ];
 
+export type MathOperator = '+' | '-' | '×' | '÷';
+
+export interface CustomEquationItem {
+  id: string;
+  termA: number;
+  operator: MathOperator;
+  termB: number;
+  correctAnswer: number;
+}
+
+export interface OperationAccuracyStat {
+  correct: number;
+  total: number;
+}
+
+export type PlayerOperationStats = Record<MathOperator, OperationAccuracyStat>;
+
+export function createEmptyOperationStats(): PlayerOperationStats {
+  return {
+    '+': { correct: 0, total: 0 },
+    '-': { correct: 0, total: 0 },
+    '×': { correct: 0, total: 0 },
+    '÷': { correct: 0, total: 0 },
+  };
+}
+
 export interface GameSettings {
   mode: GameMode;
   difficulty: DifficultyLevel;
   moduleId: LearningModuleId;
   totalRounds: number;
   timePerQuestionSec: number;
+  useCustomQuestions?: boolean;
+  customQuestions?: CustomEquationItem[];
 }
 
 export type AvatarBaseCharacterId =
@@ -296,6 +324,7 @@ export interface PlayerState {
   doubleStarsActive: boolean;
   continueChoice: 'PENDING' | 'YES' | 'NO';
   medals: AchievementMedalId[];
+  operationStats?: PlayerOperationStats;
 }
 
 export function evaluatePlayerMedals(

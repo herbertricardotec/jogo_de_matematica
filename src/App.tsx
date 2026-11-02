@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  CustomEquationItem,
   DifficultyLevel,
   GameMode,
   LearningModuleId,
@@ -380,6 +381,17 @@ export default function App() {
     sendAction({ type: 'admin:rotate_pin' });
   }, [sendAction]);
 
+  const handleAdminSetCustomQuestions = useCallback(
+    (customQuestions: CustomEquationItem[], useCustomQuestions: boolean) => {
+      sendAction({
+        type: 'admin:set_custom_questions',
+        customQuestions,
+        useCustomQuestions,
+      });
+    },
+    [sendAction]
+  );
+
   if (viewMode === 'CONTROLLER') {
     return (
       <MobileControllerView
@@ -408,6 +420,8 @@ export default function App() {
       moduleId: 'MODULE_1_NUMBERS',
       totalRounds: 6,
       timePerQuestionSec: 18,
+      useCustomQuestions: false,
+      customQuestions: [],
     },
     players: [],
     currentQuestion: null,
@@ -435,6 +449,7 @@ export default function App() {
       onSwitchToFullMobile={() => setViewMode('CONTROLLER')}
       onAdminKickPlayer={handleAdminKickPlayer}
       onAdminRotatePin={handleAdminRotatePin}
+      onAdminSetCustomQuestions={handleAdminSetCustomQuestions}
       simPlayerId={simPlayerId}
       simError={errorMessage}
       onSimJoin={(code, name, avatarId) => handleJoinRoom(code, name, avatarId, simPlayerId)}
