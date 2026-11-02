@@ -63,18 +63,53 @@
 
 /* 3D Toy Block Elevation */
 .cube-3d {
+  position: relative;
   box-shadow:
-    inset 0 3px 0 rgba(255, 255, 255, 0.35),
-    0 6px 0 rgba(0, 0, 0, 0.28),
-    0 10px 20px rgba(0, 0, 0, 0.25);
+    inset 0 4px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.22),
+    0 7px 0 rgba(0, 0, 0, 0.35),
+    0 12px 22px rgba(0, 0, 0, 0.32);
 }
 
 .cube-3d:active {
   transform: translateY(4px);
   box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.3),
+    0 2px 0 rgba(0, 0, 0, 0.35),
+    0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+/* Deep 3D Card Stage Panel */
+.panel-3d {
+  box-shadow:
     inset 0 2px 0 rgba(255, 255, 255, 0.25),
-    0 2px 0 rgba(0, 0, 0, 0.28),
-    0 4px 10px rgba(0, 0, 0, 0.2);
+    0 8px 0 rgba(4, 12, 28, 0.75),
+    0 16px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* Animated Time Passage Bar Stripes */
+@keyframes timeStripeMove {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 40px 0;
+  }
+}
+
+.time-bar-stripes {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.22) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.22) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 40px 40px;
+  animation: timeStripeMove 1s linear infinite;
 }
 
 /* Fire TV Remote D-Pad Spatial Navigation Focus Ring */

@@ -166,7 +166,7 @@ export default function App() {
                 const sorted = [...nextState.players].sort((a, b) => b.score - a.score);
                 if (sorted[0]) {
                   soundEngine.speak(
-                    `Fim do jogo! Parabéns ${sorted[0].name} e a todos os participantes!`,
+                    `Fim do jogo! Parabéns ${sorted[0].name}! Confirme no celular se deseja continuar na próxima jogada.`,
                     true
                   );
                 }
@@ -175,6 +175,10 @@ export default function App() {
             }
 
             setRoomState(nextState);
+          } else if (data.type === 'player:logged_out') {
+            if (data.newRoomCode) {
+              window.sessionStorage.setItem('mathshow_room_code', String(data.newRoomCode));
+            }
           } else if (data.type === 'room:error') {
             setErrorMessage(data.message || 'Erro ao conectar na sala.');
           }
@@ -237,6 +241,17 @@ export default function App() {
     [sendWsMessage, mobilePlayerId]
   );
 
+  const handleContinueDecision = useCallback(
+    (continueGame: boolean, customPlayerId?: string) => {
+      sendWsMessage({
+        type: 'player:continue_decision',
+        continueGame,
+        playerId: customPlayerId || mobilePlayerId,
+      });
+    },
+    [sendWsMessage, mobilePlayerId]
+  );
+
   const handleConfigureGame = useCallback(
     (config: {
       mode?: GameMode;
@@ -285,6 +300,7 @@ export default function App() {
         onJoinRoom={(code, name, avatarId) => handleJoinRoom(code, name, avatarId, mobilePlayerId)}
         onSelectAnswer={(idx) => handleSelectAnswer(idx, mobilePlayerId)}
         onUsePowerUp={(p) => handleUsePowerUp(p, mobilePlayerId)}
+        onContinueDecision={(cont) => handleContinueDecision(cont, mobilePlayerId)}
         onConfigureGame={handleConfigureGame}
         onStartGame={handleStartGame}
         onRestartGame={handleRestartGame}
@@ -303,7 +319,7 @@ export default function App() {
     settings: {
       mode: 'COMPETITIVE',
       difficulty: 'EASY',
-      moduleId: 'MODULE_2_ADDITION',
+      moduleId: 'MODULE_1_NUMBERS',
       totalRounds: 6,
       timePerQuestionSec: 18,
     },
@@ -313,6 +329,8 @@ export default function App() {
     teamTarget: 3600,
     pausedRemainingMs: null,
     lastPowerUpAnnouncement: null,
+    gameOverStartedAt: null,
+    gameOverDurationMs: 25000,
     lastUpdatedAt: Date.now(),
   };
 
@@ -334,6 +352,7 @@ export default function App() {
       onSimJoin={(code, name, avatarId) => handleJoinRoom(code, name, avatarId, simPlayerId)}
       onSimAnswer={(idx) => handleSelectAnswer(idx, simPlayerId)}
       onSimUsePowerUp={(p) => handleUsePowerUp(p, simPlayerId)}
+      onSimContinueDecision={(cont) => handleContinueDecision(cont, simPlayerId)}
     />
   );
 }

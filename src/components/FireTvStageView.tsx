@@ -16,13 +16,16 @@ import {
   AvatarIcon,
   KidsMathSplashHero,
   MgnetSoftwareBadge,
+  Module3DIllustration,
   NumberCube3D,
 } from './AvatarIcon.tsx';
 import { MobileControllerView } from './MobileControllerView.tsx';
 import { soundEngine } from '../utils/sound.ts';
 import {
   Check,
+  Clock,
   Crown,
+  Home,
   Lock,
   Mic,
   MicOff,
@@ -31,7 +34,6 @@ import {
   QrCode,
   RotateCcw,
   Smartphone,
-  Star,
   Trophy,
   Volume2,
   VolumeX,
@@ -61,11 +63,11 @@ interface FireTvStageViewProps {
   onSimJoin: (code: string, name: string, avatarId: string) => void;
   onSimAnswer: (optionIndex: number) => void;
   onSimUsePowerUp: (powerUp: PowerUpType) => void;
+  onSimContinueDecision: (continueGame: boolean) => void;
 }
 
 /**
  * Spatial 2D D-Pad Navigation Helper for Amazon Fire TV Remote
- * Moves focus between `[data-tv-focusable="true"]` elements using directional vectors
  */
 function navigateSpatialDpad(direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'): boolean {
   const focusables = Array.from(
@@ -154,14 +156,18 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   onSimJoin,
   onSimAnswer,
   onSimUsePowerUp,
+  onSimContinueDecision,
 }) => {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [muted, setMuted] = useState<boolean>(soundEngine.isMuted());
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(soundEngine.isVoiceEnabled());
   const [remainingSec, setRemainingSec] = useState<number>(18);
+  const [remainingRatio, setRemainingRatio] = useState<number>(1);
+  const [gameOverLeftSec, setGameOverLeftSec] = useState<number>(25);
+  const [gameOverRatio, setGameOverRatio] = useState<number>(1);
   const [showVirtualPhone, setShowVirtualPhone] = useState<boolean>(false);
 
-  // Parental Gate Modal State (Kid-Safe requirement)
+  // Parental Gate Modal State
   const [showParentalGate, setShowParentalGate] = useState<boolean>(false);
   const [parentalAnswer, setParentalAnswer] = useState<string>('');
   const [parentalUnlocked, setParentalUnlocked] = useState<boolean>(false);
@@ -171,7 +177,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
       ? `${window.location.origin}${window.location.pathname}?room=${roomState.code}&role=controller`
       : '';
 
-  // Generate QR Code data URL
+  // Generate QR Code data URL whenever roomState.code changes (including when rotated!)
   useEffect(() => {
     if (!roomState.code || !mobileJoinUrl) return;
     QRCode.toDataURL(mobileJoinUrl, {
@@ -197,28 +203,65 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
     return () => clearTimeout(timer);
   }, [roomState.status]);
 
-  // Countdown clock during QUESTION_ACTIVE
+  // Animated Time Passage Clock during QUESTION_ACTIVE and ROUND_REVEAL
   useEffect(() => {
-    if (roomState.status !== 'QUESTION_ACTIVE' || !roomState.currentQuestion) {
-      return;
+    if (roomState.status === 'QUESTION_ACTIVE' && roomState.currentQuestion) {
+      const q = roomState.currentQuestion;
+      let lastBeepSecond = -1;
+
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - q.startedAt;
+        const leftMs = Math.max(0, q.durationMs - elapsed);
+        const sec = Math.ceil(leftMs / 1000);
+        setRemainingSec(sec);
+        setRemainingRatio(Math.max(0, Math.min(1, leftMs / q.durationMs)));
+
+        if (sec <= 5 && sec > 0 && sec !== lastBeepSecond) {
+          lastBeepSecond = sec;
+          soundEngine.playTick(true);
+        }
+      }, 60);
+
+      return () => clearInterval(interval);
     }
-    const q = roomState.currentQuestion;
-    let lastBeepSecond = -1;
+
+    if (roomState.status === 'ROUND_REVEAL' && roomState.currentQuestion) {
+      const q = roomState.currentQuestion;
+      const start = q.revealStartedAt || Date.now();
+      const total = q.revealDurationMs || 5800;
+
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - start;
+        const leftMs = Math.max(0, total - elapsed);
+        setRemainingSec(Math.ceil(leftMs / 1000));
+        setRemainingRatio(Math.max(0, Math.min(1, leftMs / total)));
+      }, 60);
+
+      return () => clearInterval(interval);
+    }
+  }, [roomState.status, roomState.currentQuestion]);
+
+  // Countdown Clock during GAME_OVER to automatically return to TITLE_MENU (fixes Image 2!)
+  useEffect(() => {
+    if (roomState.status !== 'GAME_OVER') return;
+    const startedAt = roomState.gameOverStartedAt || Date.now();
+    const durationMs = roomState.gameOverDurationMs || 25000;
 
     const interval = setInterval(() => {
-      const elapsed = Date.now() - q.startedAt;
-      const leftMs = Math.max(0, q.durationMs - elapsed);
+      const elapsed = Date.now() - startedAt;
+      const leftMs = Math.max(0, durationMs - elapsed);
       const sec = Math.ceil(leftMs / 1000);
-      setRemainingSec(sec);
+      setGameOverLeftSec(sec);
+      setGameOverRatio(Math.max(0, Math.min(1, leftMs / durationMs)));
 
-      if (sec <= 5 && sec > 0 && sec !== lastBeepSecond) {
-        lastBeepSecond = sec;
-        soundEngine.playTick(true);
+      if (leftMs <= 0) {
+        clearInterval(interval);
+        onSetStatus('TITLE_MENU');
       }
     }, 100);
 
     return () => clearInterval(interval);
-  }, [roomState.status, roomState.currentQuestion]);
+  }, [roomState.status, roomState.gameOverStartedAt, roomState.gameOverDurationMs, onSetStatus]);
 
   // Full Spatial D-Pad & Keyboard Navigation for Amazon Fire TV Remote
   useEffect(() => {
@@ -295,7 +338,86 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
 
   const question = roomState.currentQuestion;
   const activeModuleMeta =
-    LEARNING_MODULES.find((m) => m.id === roomState.settings.moduleId) || LEARNING_MODULES[1];
+    LEARNING_MODULES.find((m) => m.id === roomState.settings.moduleId) || LEARNING_MODULES[0];
+
+  // Helper to render the 3D Equation WITHOUT duplicate `= ?` (Fixes Image 1!)
+  const renderTvEquation = () => {
+    if (!question) return null;
+    const isReveal = roomState.status === 'ROUND_REVEAL';
+
+    // Find if any player already answered so we can preview or show '?'
+    const firstAnsweredPlayer = roomState.players.find((p) => p.currentAnswer !== null);
+    const previewSelectedOption =
+      firstAnsweredPlayer && firstAnsweredPlayer.currentAnswer !== null
+        ? question.options[firstAnsweredPlayer.currentAnswer]
+        : null;
+
+    if (question.equationFormat === 'MISSING_ADDEND') {
+      // Module 1: e.g. `3 + [ ? ] = 4` -> when answered or revealed, the number goes BEFORE `= 4`!
+      const slotDisplay = isReveal
+        ? question.correctAnswer
+        : previewSelectedOption !== null
+        ? previewSelectedOption
+        : '?';
+
+      const slotColor = isReveal
+        ? '#22C55E'
+        : previewSelectedOption !== null
+        ? '#007AFF'
+        : '#FFD600';
+
+      return (
+        <div className="inline-flex flex-wrap items-center justify-center gap-3 sm:gap-4 font-display font-black text-4xl sm:text-5xl lg:text-6xl tracking-tight text-white tabular-nums">
+          <span>{question.terms[0]}</span>
+          <span className="text-[#22C55E]">+</span>
+          <motion.span
+            key={String(slotDisplay)}
+            initial={{ scale: 0.8, y: -6 }}
+            animate={{ scale: 1, y: 0 }}
+            style={{ backgroundColor: slotColor }}
+            className={`cube-3d inline-flex items-center justify-center min-w-[68px] sm:min-w-[82px] px-4 py-1.5 rounded-2xl border-3 border-white ${
+              slotColor === '#FFD600' ? 'text-slate-950' : 'text-white'
+            }`}
+          >
+            {slotDisplay}
+          </motion.span>
+          <span>=</span>
+          <span className="text-[#FFD600]">{question.targetValue}</span>
+        </div>
+      );
+    }
+
+    // Standard Result format (Modules 2, 3, 4): e.g. `4 + 3 = [ ? ]`
+    const resultDisplay = isReveal
+      ? question.correctAnswer
+      : previewSelectedOption !== null
+      ? previewSelectedOption
+      : '?';
+
+    const resultColor = isReveal
+      ? '#22C55E'
+      : previewSelectedOption !== null
+      ? '#007AFF'
+      : '#FFD600';
+
+    return (
+      <div className="inline-flex flex-wrap items-center justify-center gap-3 sm:gap-4 font-display font-black text-4xl sm:text-5xl lg:text-6xl tracking-tight text-white tabular-nums">
+        <span>{question.expression}</span>
+        <span>=</span>
+        <motion.span
+          key={String(resultDisplay)}
+          initial={{ scale: 0.8, y: -6 }}
+          animate={{ scale: 1, y: 0 }}
+          style={{ backgroundColor: resultColor }}
+          className={`cube-3d inline-flex items-center justify-center min-w-[68px] sm:min-w-[82px] px-4 py-1.5 rounded-2xl border-3 border-white ${
+            resultColor === '#FFD600' ? 'text-slate-950' : 'text-white'
+          }`}
+        >
+          {resultDisplay}
+        </motion.span>
+      </div>
+    );
+  };
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#071936] text-[#F8FAFC] select-none flex flex-col justify-between">
@@ -308,7 +430,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
       />
 
       {/* TOP BAR HUD + ALWAYS-VISIBLE RECONNECTION QR CODE WIDGET */}
-      <header className="relative z-10 flex items-center justify-between gap-6 px-6 lg:px-10 py-3 border-b-2 border-white/15 bg-[#0A192F]/90">
+      <header className="relative z-10 flex items-center justify-between gap-4 px-5 lg:px-10 py-2.5 border-b-2 border-white/15 bg-[#0A192F]/90">
         {/* Left Zone: Brand & Active Module */}
         <div className="flex items-center gap-3 shrink-0">
           <button
@@ -322,13 +444,14 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
           <span className="text-slate-500" aria-hidden="true">
             ·
           </span>
-          <span className="text-xs font-extrabold text-sky-200 whitespace-nowrap">
-            {activeModuleMeta.numberLabel}: <strong className="text-white">{activeModuleMeta.title}</strong>
+          <span className="hidden sm:inline text-xs font-extrabold text-sky-200 whitespace-nowrap">
+            {activeModuleMeta.numberLabel}:{' '}
+            <strong className="text-white">{activeModuleMeta.title}</strong>
           </span>
         </div>
 
-        {/* Center Zone: ALWAYS-VISIBLE RECONNECTION QR CODE & PIN PILL (Drop-in Multiplayer) */}
-        <div className="flex items-center gap-3 px-3.5 py-1.5 rounded-2xl bg-[#0F172A] border-2 border-[#FFD600] shadow-md">
+        {/* Center Zone: ALWAYS-VISIBLE RECONNECTION QR CODE & PIN PILL */}
+        <div className="flex items-center gap-3 px-3.5 py-1 rounded-2xl bg-[#0F172A] border-2 border-[#FFD600] shadow-md">
           {qrDataUrl && (
             <img
               src={qrDataUrl}
@@ -359,7 +482,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
             type="button"
             data-tv-focusable="true"
             onClick={() => setShowVirtualPhone((v) => !v)}
-            className={`tv-focusable min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+            className={`tv-focusable min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
               showVirtualPhone
                 ? 'bg-[#FFD600] text-slate-950'
                 : 'bg-[#007AFF] hover:bg-[#0284C7] text-white border border-white/40'
@@ -374,7 +497,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
             data-tv-focusable="true"
             onClick={handleToggleVoice}
             title="Narrador de Voz em Português"
-            className={`tv-focusable min-h-[42px] px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 whitespace-nowrap ${
+            className={`tv-focusable min-h-[40px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 whitespace-nowrap ${
               voiceEnabled && !muted
                 ? 'bg-emerald-600/90 border-emerald-300 text-white'
                 : 'bg-slate-800 border-slate-700 text-slate-400'
@@ -390,7 +513,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               data-tv-focusable="true"
               onClick={onTogglePause}
               aria-label="Pausar jogo"
-              className="tv-focusable min-h-[42px] min-w-[42px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
+              className="tv-focusable min-h-[40px] min-w-[40px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
             >
               {roomState.status === 'PAUSED' ? (
                 <Play className="w-4 h-4 text-[#FFD600]" />
@@ -405,7 +528,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
             data-tv-focusable="true"
             onClick={handleToggleMute}
             aria-label={muted ? 'Ativar áudio' : 'Silenciar áudio'}
-            className="tv-focusable min-h-[42px] min-w-[42px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
+            className="tv-focusable min-h-[40px] min-w-[40px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
           >
             {muted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
           </button>
@@ -413,13 +536,12 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
       </header>
 
       {/* MAIN STAGE BODY */}
-      <main className="relative z-10 flex-1 flex flex-col justify-between px-6 lg:px-12 py-3 overflow-hidden">
-        {/* TELA 1: SPLASH / MENU PRINCIPAL (Baseada no Layout "Jogo de Matemática") */}
+      <main className="relative z-10 flex-1 flex flex-col justify-between px-6 lg:px-10 py-2.5 overflow-y-auto">
+        {/* TELA 1: SPLASH / MENU PRINCIPAL */}
         {roomState.status === 'TITLE_MENU' && (
           <div className="my-auto max-w-4xl w-full mx-auto flex flex-col items-center text-center space-y-4">
             <KidsMathSplashHero />
 
-            {/* Giant Pill Button "JOGAR" */}
             <div className="flex flex-wrap items-center justify-center gap-4 pt-1">
               <button
                 type="button"
@@ -449,7 +571,6 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               </button>
             </div>
 
-            {/* Footer with MgnetSoftware Seal & D-Pad Control Hint */}
             <div className="flex flex-col items-center gap-1.5 pt-1">
               <MgnetSoftwareBadge onOpenParentalGate={() => setShowParentalGate(true)} />
               <div className="text-[11px] text-sky-200 font-bold tracking-wide">
@@ -459,22 +580,22 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
           </div>
         )}
 
-        {/* TELA 2: SELEÇÃO DE MÓDULOS / TRILHA EDUCATIVA + PAREAMENTO QR */}
+        {/* TELA 2: SELEÇÃO DE MÓDULOS COM DESCRIÇÃO COMPLETA E ILUSTRAÇÕES 3D */}
         {roomState.status === 'LOBBY' && (
           <div className="my-auto max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
             {/* Left Card: Big QR Code & 4-Digit PIN */}
-            <div className="lg:col-span-4 rounded-3xl bg-[#0F172A]/95 border-3 border-white/25 p-5 flex flex-col justify-between shadow-2xl">
+            <div className="lg:col-span-4 rounded-3xl bg-[#0F172A]/95 border-3 border-white/25 p-5 flex flex-col justify-between panel-3d">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-[#FFD600] text-xs font-black uppercase">
                   <QrCode className="w-4 h-4" />
                   <span>Controle no Celular (1 a 4 Jogadores)</span>
                 </div>
                 <h2 className="font-display text-xl font-black text-white">
-                  Aponte a câmera do celular para entrar!
+                  Aponte a câmera do celular para criar seu Avatar 3D!
                 </h2>
               </div>
 
-              <div className="my-3 flex flex-col items-center gap-3 bg-[#071936] p-4 rounded-2xl border-2 border-sky-400/40 text-center">
+              <div className="my-3 flex flex-col items-center gap-2.5 bg-[#071936] p-4 rounded-2xl border-2 border-sky-400/40 text-center">
                 {qrDataUrl && (
                   <img
                     src={qrDataUrl}
@@ -495,25 +616,24 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                 type="button"
                 data-tv-focusable="true"
                 onClick={onSwitchToFullMobile}
-                className="tv-focusable w-full min-h-[46px] rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-extrabold text-sky-200"
+                className="tv-focusable cube-3d w-full min-h-[46px] rounded-2xl bg-[#007AFF] hover:bg-[#0284C7] border-2 border-white text-xs font-black text-white"
               >
-                Alternar este Dispositivo para Visão Celular
+                Abrir Login do Celular Nesta Tela
               </button>
             </div>
 
-            {/* Right Card: 4 Educational Modules Trail */}
-            <div className="lg:col-span-8 rounded-3xl bg-[#0F172A]/95 border-3 border-white/25 p-5 flex flex-col justify-between space-y-4 shadow-2xl">
+            {/* Right Card: 4 Educational Modules Trail WITH COMPLETE UNTRUNCATED DESCRIPTIONS + 3D ILLUSTRATIONS */}
+            <div className="lg:col-span-8 rounded-3xl bg-[#0F172A]/95 border-3 border-white/25 p-5 flex flex-col justify-between space-y-4 panel-3d">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-xs font-black text-[#22C55E] uppercase">
-                    TRILHA EDUCATIVA · ESCOLHA COM O CONTROLE DA TV OU CELULAR
+                    TRILHA EDUCATIVA 3D · ESCOLHA COM O CONTROLE DA TV OU CELULAR
                   </div>
                   <h2 className="font-display text-2xl font-black text-white">
                     Selecione o Módulo de Matemática
                   </h2>
                 </div>
 
-                {/* Difficulty Selector */}
                 <div className="flex items-center gap-1.5">
                   {(
                     [
@@ -539,7 +659,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                 </div>
               </div>
 
-              {/* 4 Educational Modules Grid */}
+              {/* 4 Educational Modules Grid — Complete descriptions without truncation! */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 {LEARNING_MODULES.map((mod) => {
                   const isSelected = roomState.settings.moduleId === mod.id;
@@ -550,29 +670,30 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                       data-tv-focusable="true"
                       onClick={() => {
                         soundEngine.playTick();
-                        soundEngine.speak(`${mod.numberLabel}: ${mod.title}`);
+                        soundEngine.speak(`${mod.numberLabel}: ${mod.title}. ${mod.subtitle}`);
                         onConfigureGame({ moduleId: mod.id });
                       }}
                       style={{
                         backgroundColor: isSelected ? mod.bgColor : '#1E293B',
                       }}
-                      className={`tv-focusable cube-3d p-4 rounded-2xl border-3 text-left flex items-center gap-3.5 transition-all ${
+                      className={`tv-focusable cube-3d p-4 rounded-3xl border-3 text-left flex flex-col justify-between gap-2.5 transition-all ${
                         isSelected
                           ? 'border-white scale-[1.01]'
-                          : 'border-slate-700 hover:border-slate-500 opacity-90'
+                          : 'border-slate-700 hover:border-slate-500 opacity-95'
                       }`}
                     >
-                      <div className="w-14 h-14 rounded-2xl bg-black/25 border-2 border-white/80 flex items-center justify-center font-display font-black text-2xl text-white shrink-0">
-                        {mod.symbol}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[11px] font-black uppercase text-white/90">
+                      <div className="flex items-center justify-between gap-2 w-full">
+                        <span className="px-2.5 py-0.5 rounded-lg bg-black/30 text-xs font-black uppercase text-[#FFD600]">
                           {mod.numberLabel}
-                        </div>
-                        <div className="font-display font-black text-lg text-white truncate">
+                        </span>
+                        <Module3DIllustration moduleId={mod.id} />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="font-display font-black text-lg sm:text-xl text-white leading-snug">
                           {mod.title}
                         </div>
-                        <div className="text-xs font-semibold text-white/85 line-clamp-1">
+                        <div className="text-xs sm:text-sm font-bold text-white/95 leading-relaxed">
                           {mod.subtitle}
                         </div>
                       </div>
@@ -628,45 +749,68 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
           </div>
         )}
 
-        {/* TELA 3: INTERFACE DE ATIVIDADE (GAMEPLAY COM BLOCOS 3D + 4 CUBOS DE RESPOSTA) */}
+        {/* TELA 3: INTERFACE DE ATIVIDADE (COM ANIMAÇÃO DE PASSAGEM DE TEMPO + EQUAÇÃO CORRIGIDA) */}
         {(roomState.status === 'QUESTION_ACTIVE' ||
           roomState.status === 'ROUND_REVEAL' ||
           roomState.status === 'PAUSED') &&
           question && (
-            <div className="my-auto max-w-5xl w-full mx-auto flex flex-col justify-between gap-4">
-              {/* Top Activity Status Bar */}
-              <div className="flex items-center justify-between gap-4 px-5 py-2.5 rounded-2xl bg-[#0F172A]/95 border-2 border-white/20">
-                <div className="flex items-center gap-3 text-sm font-extrabold text-white tabular-nums">
-                  <span className="text-[#FFD600] font-display font-black">
-                    ATIVIDADE {question.roundNumber}/{question.totalRounds}
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span>{question.categoryLabel}</span>
+            <div className="my-auto max-w-5xl w-full mx-auto flex flex-col justify-between gap-3.5">
+              {/* Top Activity Status + Animated Time Passage Bar */}
+              <div className="rounded-2xl bg-[#0F172A]/95 border-2 border-white/25 px-5 py-3 space-y-2 panel-3d">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 text-sm font-extrabold text-white tabular-nums">
+                    <span className="text-[#FFD600] font-display font-black">
+                      ATIVIDADE {question.roundNumber}/{question.totalRounds}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>{question.categoryLabel}</span>
+                  </div>
+
+                  {roomState.lastPowerUpAnnouncement && (
+                    <div className="text-xs font-black text-[#FFD600] animate-bounce">
+                      ✨ {roomState.lastPowerUpAnnouncement}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-[#FFD600]" />
+                    <span className="text-xs font-bold text-sky-200">
+                      {roomState.status === 'ROUND_REVEAL' ? 'Próxima em:' : 'Tempo:'}
+                    </span>
+                    <span
+                      className={`font-mono font-black text-2xl tabular-nums ${
+                        remainingSec <= 5 && roomState.status === 'QUESTION_ACTIVE'
+                          ? 'text-[#EF4444]'
+                          : 'text-[#FFD600]'
+                      }`}
+                    >
+                      {remainingSec}s
+                    </span>
+                  </div>
                 </div>
 
-                {roomState.lastPowerUpAnnouncement && (
-                  <div className="text-xs font-black text-[#FFD600] animate-bounce">
-                    ✨ {roomState.lastPowerUpAnnouncement}
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-sky-200">Tempo:</span>
-                  <span
-                    className={`font-mono font-black text-2xl tabular-nums ${
-                      remainingSec <= 5 && roomState.status === 'QUESTION_ACTIVE'
-                        ? 'text-[#EF4444]'
-                        : 'text-[#FFD600]'
-                    }`}
-                  >
-                    {roomState.status === 'ROUND_REVEAL' ? 'PRONTO!' : `${remainingSec}s`}
-                  </span>
+                {/* 3D Animated Time Passage Tube */}
+                <div className="w-full h-4 rounded-full bg-slate-950 border-2 border-white/25 overflow-hidden p-0.5 relative">
+                  <div
+                    style={{
+                      width: `${Math.max(3, remainingRatio * 100)}%`,
+                      backgroundColor:
+                        roomState.status === 'ROUND_REVEAL'
+                          ? '#007AFF'
+                          : remainingRatio > 0.5
+                          ? '#22C55E'
+                          : remainingRatio > 0.25
+                          ? '#FFD600'
+                          : '#EF4444',
+                    }}
+                    className="h-full rounded-full time-bar-stripes transition-all duration-75"
+                  />
                 </div>
               </div>
 
-              {/* Center Visual Question Board with 3D Stacked Blocks */}
-              <div className="rounded-3xl bg-[#0F172A]/95 border-3 border-white/30 px-6 py-5 text-center shadow-2xl space-y-3">
-                <div className="text-base sm:text-lg font-extrabold text-sky-200">
+              {/* Center Visual Question Board with 3D Stacked Blocks & Fixed Equation */}
+              <div className="rounded-3xl bg-[#0F172A]/95 border-3 border-white/30 px-6 py-4 text-center panel-3d space-y-3">
+                <div className="text-base sm:text-xl font-extrabold text-sky-200">
                   {question.promptText}
                 </div>
 
@@ -676,7 +820,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                     {question.visualBlocks.map((group, gIdx) => (
                       <div
                         key={gIdx}
-                        className="flex flex-col items-center gap-1.5 bg-slate-900/90 px-4 py-2.5 rounded-2xl border border-white/15"
+                        className="flex flex-col items-center gap-1.5 bg-slate-900/95 px-4 py-2.5 rounded-2xl border-2 border-white/20 shadow-inner"
                       >
                         <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-xs">
                           {Array.from({ length: Math.min(group.count, 10) }).map((_, bIdx) => (
@@ -696,19 +840,8 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                   </div>
                 )}
 
-                {/* Big 3D Equation Display */}
-                <div className="font-display font-black text-4xl sm:text-5xl lg:text-6xl tracking-tight text-white tabular-nums">
-                  {question.expression} ={' '}
-                  <span
-                    className={
-                      roomState.status === 'ROUND_REVEAL'
-                        ? 'text-[#22C55E]'
-                        : 'text-[#FFD600]'
-                    }
-                  >
-                    {roomState.status === 'ROUND_REVEAL' ? question.correctAnswer : '?'}
-                  </span>
-                </div>
+                {/* Fixed 3D Equation Display (No duplicate `= ?`!) */}
+                <div className="py-1">{renderTvEquation()}</div>
 
                 {roomState.status === 'ROUND_REVEAL' && (
                   <div className="pt-1 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-emerald-300 font-bold">
@@ -720,13 +853,13 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                       onClick={onNextRound}
                       className="tv-focusable cube-3d px-5 py-2 rounded-2xl bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white font-display font-black text-xs whitespace-nowrap"
                     >
-                      Próxima Atividade (Enter)
+                      Próxima Atividade Agora (Enter)
                     </button>
                   </div>
                 )}
               </div>
 
-              {/* Bottom Area: 4 Giant 3D Number Cube Answer Buttons (>= 64px) */}
+              {/* Bottom Area: 4 Giant 3D Number Cube Answer Buttons */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {ANSWER_OPTIONS_META.map((meta, idx) => {
                   const val = question.options[meta.index];
@@ -742,7 +875,9 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                       key={meta.letter}
                       type="button"
                       data-tv-focusable="true"
-                      data-tv-primary={idx === 0 && roomState.status === 'QUESTION_ACTIVE' ? 'true' : undefined}
+                      data-tv-primary={
+                        idx === 0 && roomState.status === 'QUESTION_ACTIVE' ? 'true' : undefined
+                      }
                       whileTap={{ scale: 0.95 }}
                       disabled={roomState.status !== 'QUESTION_ACTIVE'}
                       onClick={() => {
@@ -756,7 +891,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                             : '#1E293B'
                           : meta.hexColor,
                       }}
-                      className={`tv-focusable cube-3d rounded-3xl p-4 flex flex-col justify-between min-h-[120px] border-3 transition-all text-white ${
+                      className={`tv-focusable cube-3d rounded-3xl p-4 flex flex-col justify-between min-h-[116px] border-3 transition-all text-white ${
                         isRevealState
                           ? isCorrect
                             ? 'border-white scale-105 shadow-2xl'
@@ -793,42 +928,65 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
             </div>
           )}
 
-        {/* TELA 4: GRANDE FINAL COM ESTRELAS E RECOMPENSAS SUAVES */}
+        {/* TELA 4: GRANDE FINAL COM CONTADOR AUTOMÁTICO PARA VOLTAR À TELA PRINCIPAL (Fixes Image 2!) */}
         {roomState.status === 'GAME_OVER' && (
-          <div className="my-auto max-w-4xl w-full mx-auto rounded-3xl bg-[#0F172A]/95 border-4 border-[#FFD600] p-7 text-center space-y-5 shadow-2xl">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-[#FFD600]/20 text-[#FFD600] mx-auto">
-              <Trophy className="w-10 h-10" />
+          <div className="my-auto max-w-4xl w-full mx-auto rounded-3xl bg-[#0F172A]/95 border-4 border-[#FFD600] p-6 text-center space-y-4 panel-3d">
+            {/* Auto-return Countdown Bar */}
+            <div className="space-y-1.5 max-w-md mx-auto">
+              <div className="flex items-center justify-center gap-2 text-xs font-black text-[#FFD600]">
+                <Clock className="w-4 h-4" />
+                <span>
+                  Retornando automaticamente para a Tela Principal em{' '}
+                  <strong className="font-mono text-sm underline">{gameOverLeftSec}s</strong>
+                </span>
+              </div>
+              <div className="w-full h-2.5 rounded-full bg-slate-900 border border-white/20 overflow-hidden">
+                <div
+                  style={{ width: `${Math.max(3, gameOverRatio * 100)}%` }}
+                  className="h-full bg-[#FFD600] time-bar-stripes transition-all duration-100"
+                />
+              </div>
+            </div>
+
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-3xl bg-[#FFD600]/20 text-[#FFD600] mx-auto">
+              <Trophy className="w-9 h-9" />
             </div>
 
             <div className="space-y-1">
-              <h2 className="title-3d-yellow font-display font-black text-4xl">
+              <h2 className="title-3d-yellow font-display font-black text-3xl sm:text-4xl">
                 Parabéns, Construtores da Matemática!
               </h2>
-              <p className="text-sm font-bold text-sky-200">
-                Todos completaram a trilha de blocos com sucesso!
+              <p className="text-xs sm:text-sm font-bold text-sky-200">
+                No celular, cada jogador pode escolher continuar ou liberar sua vaga!
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-left">
+            {roomState.lastPowerUpAnnouncement && (
+              <div className="inline-block px-4 py-1.5 rounded-xl bg-sky-950 border border-[#FFD600] text-xs font-black text-[#FFD600]">
+                🔄 {roomState.lastPowerUpAnnouncement}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-left">
               {[...roomState.players]
                 .sort((a, b) => b.score - a.score)
                 .map((p, idx) => (
                   <div
                     key={p.id}
-                    className={`p-4 rounded-2xl border-2 ${
+                    className={`p-3.5 rounded-2xl border-2 ${
                       idx === 0
                         ? 'bg-[#007AFF]/30 border-[#FFD600]'
                         : 'bg-slate-900 border-slate-700'
                     } space-y-2`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-display font-black text-base text-[#FFD600]">
+                      <span className="font-display font-black text-sm text-[#FFD600]">
                         #{idx + 1} · ⭐ {p.stars} Estrelas
                       </span>
-                      {idx === 0 && <Crown className="w-5 h-5 text-[#FFD600]" />}
+                      {idx === 0 && <Crown className="w-4 h-4 text-[#FFD600]" />}
                     </div>
                     <div className="flex items-center gap-2.5">
-                      <AvatarIcon avatarId={p.avatarId} className="w-10 h-10 shrink-0" />
+                      <AvatarIcon avatarId={p.avatarId} className="w-11 h-11 shrink-0" />
                       <div className="min-w-0">
                         <div className="font-display font-black text-base text-white truncate">
                           {p.name}
@@ -838,23 +996,38 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                         </div>
                       </div>
                     </div>
-                    <div className="text-xs font-bold text-sky-200 pt-1 border-t border-white/10 tabular-nums">
-                      Acertos: {p.correctCount}/{roomState.settings.totalRounds}
+                    <div className="flex items-center justify-between text-[11px] font-bold text-sky-200 pt-1 border-t border-white/10 tabular-nums">
+                      <span>
+                        Acertos: {p.correctCount}/{roomState.settings.totalRounds}
+                      </span>
+                      {p.continueChoice === 'YES' && (
+                        <span className="text-emerald-400 font-black">✓ Continua</span>
+                      )}
                     </div>
                   </div>
                 ))}
             </div>
 
-            <div className="pt-2 flex items-center justify-center gap-4">
+            <div className="pt-1 flex flex-wrap items-center justify-center gap-4">
               <button
                 type="button"
                 data-tv-focusable="true"
                 data-tv-primary="true"
                 onClick={onRestartGame}
-                className="tv-focusable cube-3d min-h-[58px] px-10 py-3 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-3 border-white text-white font-display font-black text-lg flex items-center gap-2.5 whitespace-nowrap"
+                className="tv-focusable cube-3d min-h-[54px] px-8 py-3 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-3 border-white text-white font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
               >
                 <RotateCcw className="w-5 h-5" />
                 <span>JOGAR NOVAMENTE (Enter)</span>
+              </button>
+
+              <button
+                type="button"
+                data-tv-focusable="true"
+                onClick={() => onSetStatus('TITLE_MENU')}
+                className="tv-focusable cube-3d min-h-[54px] px-6 py-3 rounded-full bg-[#007AFF] hover:bg-[#0284C7] border-3 border-white text-white font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
+              >
+                <Home className="w-5 h-5" />
+                <span>Voltar à Tela Principal</span>
               </button>
             </div>
           </div>
@@ -922,7 +1095,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                 <div className="flex items-center gap-2.5 min-w-0">
                   <AvatarIcon
                     avatarId={player.avatarId || fallbackAvatar.id}
-                    className="w-10 h-10 shrink-0"
+                    className="w-11 h-11 shrink-0"
                   />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1">
@@ -959,7 +1132,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
         </section>
       </main>
 
-      {/* PARENTAL GATE MODAL (Bloqueio Parental Kid-Safe) */}
+      {/* PARENTAL GATE MODAL */}
       {showParentalGate && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6">
           <div className="max-w-md w-full rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] p-6 text-center space-y-4 shadow-2xl">
@@ -1071,7 +1244,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
       {showVirtualPhone && (
         <aside
           aria-label="Simulador de Controle no Celular"
-          className="fixed bottom-4 right-4 z-40 w-[355px] h-[630px] max-h-[88vh] rounded-[32px] bg-[#071936] border-4 border-[#FFD600] shadow-2xl overflow-hidden flex flex-col"
+          className="fixed bottom-4 right-4 z-40 w-[365px] h-[645px] max-h-[89vh] rounded-[32px] bg-[#071936] border-4 border-[#FFD600] shadow-2xl overflow-hidden flex flex-col"
         >
           <div className="bg-[#0A192F] px-4 py-2 flex items-center justify-between border-b border-white/15">
             <span className="text-xs font-black text-[#FFD600] flex items-center gap-1.5">
@@ -1096,6 +1269,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               onJoinRoom={onSimJoin}
               onSelectAnswer={onSimAnswer}
               onUsePowerUp={onSimUsePowerUp}
+              onContinueDecision={onSimContinueDecision}
               onConfigureGame={onConfigureGame}
               onStartGame={onStartGame}
               onRestartGame={onRestartGame}

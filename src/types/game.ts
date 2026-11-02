@@ -79,12 +79,66 @@ export interface GameSettings {
   timePerQuestionSec: number;
 }
 
+export type AvatarBaseCharacterId =
+  | 'cube_happy'
+  | 'owl_student'
+  | 'fox_scientist'
+  | 'panda_genius'
+  | 'cat_astro'
+  | 'robo_calc'
+  | 'boy_blue'
+  | 'girl_pink';
+
+export type AvatarAccessoryId = 'none' | 'cap' | 'glasses' | 'crown' | 'headphones';
+
+export interface AvatarGeneratorPreset {
+  id: AvatarBaseCharacterId;
+  label: string;
+  defaultColor: string;
+}
+
+export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
+  { id: 'cube_happy', label: 'Cubo Feliz 3D', defaultColor: '#007AFF' },
+  { id: 'owl_student', label: 'Coruja Sábia 3D', defaultColor: '#A855F7' },
+  { id: 'fox_scientist', label: 'Raposa Estudante', defaultColor: '#F97316' },
+  { id: 'panda_genius', label: 'Panda Gênio 3D', defaultColor: '#22C55E' },
+  { id: 'cat_astro', label: 'Gatinho Blocos', defaultColor: '#EC4899' },
+  { id: 'robo_calc', label: 'Robô Calculadora', defaultColor: '#0284C7' },
+  { id: 'boy_blue', label: 'Léo Construtor', defaultColor: '#007AFF' },
+  { id: 'girl_pink', label: 'Bia Estrela', defaultColor: '#EC4899' },
+];
+
+export const AVATAR_3D_COLORS: { hex: string; label: string }[] = [
+  { hex: '#007AFF', label: 'Azul Céu' },
+  { hex: '#FFD600', label: 'Amarelo Sol' },
+  { hex: '#EF4444', label: 'Vermelho Vivo' },
+  { hex: '#22C55E', label: 'Verde Limão' },
+  { hex: '#A855F7', label: 'Roxo Mágico' },
+  { hex: '#F97316', label: 'Laranja Vivo' },
+  { hex: '#EC4899', label: 'Rosa Estrela' },
+];
+
+export const AVATAR_ACCESSORIES: { id: AvatarAccessoryId; label: string; icon: string }[] = [
+  { id: 'none', label: 'Natural', icon: '✨' },
+  { id: 'cap', label: 'Formatura', icon: '🎓' },
+  { id: 'glasses', label: 'Óculos Gênio', icon: '👓' },
+  { id: 'crown', label: 'Coroa 3D', icon: '👑' },
+  { id: 'headphones', label: 'Fone Gamer', icon: '🎧' },
+];
+
 export interface PlayerAvatar {
   id: string;
   label: string;
   color: string;
   accentBg: string;
 }
+
+export const PLAYER_AVATARS: PlayerAvatar[] = [
+  { id: 'cube_happy|#007AFF|cap', label: 'Cubo Feliz', color: '#007AFF', accentBg: 'rgba(0, 122, 255, 0.2)' },
+  { id: 'owl_student|#A855F7|glasses', label: 'Coruja Sábia', color: '#A855F7', accentBg: 'rgba(168, 85, 247, 0.2)' },
+  { id: 'fox_scientist|#F97316|crown', label: 'Raposa Turbo', color: '#F97316', accentBg: 'rgba(249, 115, 22, 0.2)' },
+  { id: 'panda_genius|#22C55E|headphones', label: 'Panda Gênio', color: '#22C55E', accentBg: 'rgba(34, 197, 94, 0.2)' },
+];
 
 export interface PlayerState {
   id: string;
@@ -104,10 +158,10 @@ export interface PlayerState {
   lastPointsEarned: number;
   isConnected: boolean;
   isHost: boolean;
-  // Single-use Power-Ups per match
   powerUpsUsed: Record<PowerUpType, boolean>;
-  eliminatedOptions: number[]; // Populated when player uses FIFTY_FIFTY on current question
-  doubleStarsActive: boolean;  // Active when player uses DOUBLE_STARS on current question
+  eliminatedOptions: number[];
+  doubleStarsActive: boolean;
+  continueChoice: 'PENDING' | 'YES' | 'NO';
 }
 
 export interface VisualBlockGroup {
@@ -121,6 +175,8 @@ export interface MathQuestion {
   roundNumber: number;
   totalRounds: number;
   expression: string;
+  equationFormat: 'MISSING_ADDEND' | 'STANDARD_RESULT';
+  targetValue?: number;
   promptText: string;
   speechText: string;
   terms: number[];
@@ -133,6 +189,8 @@ export interface MathQuestion {
   visualBlocks: VisualBlockGroup[];
   startedAt: number;
   durationMs: number;
+  revealStartedAt?: number;
+  revealDurationMs?: number;
   isLightningRound: boolean;
 }
 
@@ -146,15 +204,10 @@ export interface RoomState {
   teamTarget: number;
   pausedRemainingMs: number | null;
   lastPowerUpAnnouncement: string | null;
+  gameOverStartedAt: number | null;
+  gameOverDurationMs: number;
   lastUpdatedAt: number;
 }
-
-export const PLAYER_AVATARS: PlayerAvatar[] = [
-  { id: 'boy_blue', label: 'Leo Blocos', color: '#007AFF', accentBg: 'rgba(0, 122, 255, 0.2)' },
-  { id: 'girl_pink', label: 'Bia Estrela', color: '#EC4899', accentBg: 'rgba(236, 72, 153, 0.2)' },
-  { id: 'fox', label: 'Raposa Turbo', color: '#F97316', accentBg: 'rgba(249, 115, 22, 0.2)' },
-  { id: 'tiger', label: 'Tigre Limão', color: '#22C55E', accentBg: 'rgba(34, 197, 94, 0.2)' },
-];
 
 export interface OptionMeta {
   index: number;
@@ -213,14 +266,4 @@ export const ANSWER_OPTIONS_META: OptionMeta[] = [
     activeBgClass: 'bg-[#22C55E]',
     hexColor: '#22C55E',
   },
-];
-
-export const BLOCK_PALETTE_HEX = [
-  '#007AFF', // 1 - Azul Primário
-  '#FFD600', // 2 - Amarelo Vibrante
-  '#EF4444', // 3 - Vermelho Vivo
-  '#22C55E', // 4 - Verde Limão
-  '#A855F7', // 5 - Roxo/Lilás
-  '#F97316', // 6 - Laranja
-  '#EC4899', // 7 - Rosa Infantil
 ];

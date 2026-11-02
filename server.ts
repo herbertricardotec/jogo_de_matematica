@@ -25,6 +25,7 @@ interface InternalRoom {
   playerSockets: Map<string, WebSocket>;
   roundTimer: NodeJS.Timeout | null;
   revealTimer: NodeJS.Timeout | null;
+  gameOverTimer: NodeJS.Timeout | null;
   questionRemainingMs: number;
 }
 
@@ -42,6 +43,16 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function extractColorFromAvatarId(avatarId: string, fallbackSlot: number): string {
+  if (avatarId.includes('|')) {
+    const parts = avatarId.split('|');
+    if (parts[1] && parts[1].startsWith('#')) {
+      return parts[1];
+    }
+  }
+  return PLAYER_AVATARS[fallbackSlot % PLAYER_AVATARS.length].color;
+}
+
 function buildModuleQuestion(
   roundNumber: number,
   totalRounds: number,
@@ -55,6 +66,8 @@ function buildModuleQuestion(
   let operators: ('+' | '-' | '×' | '÷')[] = [];
   let correctAnswer = 0;
   let expression = '';
+  let equationFormat: 'MISSING_ADDEND' | 'STANDARD_RESULT' = 'STANDARD_RESULT';
+  let targetValue: number | undefined = undefined;
   let promptText = '';
   let speechText = '';
   let mentalMathTip = '';
@@ -62,17 +75,19 @@ function buildModuleQuestion(
   let visualBlocks: VisualBlockGroup[] = [];
 
   if (moduleId === 'MODULE_1_NUMBERS') {
-    // Module 1: Conhecendo os Números (Missing blocks to reach target tower or counting blocks)
+    // Module 1: Conhecendo os Números (e.g., 3 + [ ? ] = 4)
     const target = randomInt(3, Math.min(10, maxSimple + 2));
     const current = randomInt(1, target - 1);
     correctAnswer = target - current;
     terms = [current, correctAnswer];
     operators = ['+'];
+    equationFormat = 'MISSING_ADDEND';
+    targetValue = target;
     expression = `${current} + ? = ${target}`;
     promptText = `Quantos blocos faltam para chegar no ${target}?`;
-    speechText = `Rodada ${roundNumber}. Temos ${current} blocos na mesa. Quantos blocos faltam para chegar no número ${target}?`;
+    speechText = `Atividade ${roundNumber}. Temos ${current} blocos na mesa. Quantos blocos faltam para chegar no número ${target}?`;
     categoryLabel = 'Módulo 1 · Conhecendo os Números';
-    mentalMathTip = `Já temos ${current} bloco(s). Contando mais ${correctAnswer} bloco(s), completamos a torre de ${target}!`;
+    mentalMathTip = `Já temos ${current} bloco(s). Adicionando mais ${correctAnswer} bloco(s): ${current} + ${correctAnswer} = ${target}!`;
     visualBlocks = [
       { count: current, colorHex: '#007AFF', label: `Temos ${current}` },
       { count: target, colorHex: '#FFD600', label: `Meta: ${target}` },
@@ -85,9 +100,10 @@ function buildModuleQuestion(
     correctAnswer = a + b;
     terms = [a, b];
     operators = ['+'];
+    equationFormat = 'STANDARD_RESULT';
     expression = `${a} + ${b}`;
     promptText = `Qual é a soma dos blocos ${a} mais ${b}?`;
-    speechText = `Rodada ${roundNumber}. Quanto é ${a} mais ${b}?`;
+    speechText = `Atividade ${roundNumber}. Quanto é ${a} mais ${b}?`;
     categoryLabel = 'Módulo 2 · Somando com Blocos';
     mentalMathTip = `Empilhando ${a} com ${b}, chegamos ao total de ${correctAnswer}!`;
     visualBlocks = [
@@ -102,9 +118,10 @@ function buildModuleQuestion(
     correctAnswer = a - b;
     terms = [a, b];
     operators = ['-'];
+    equationFormat = 'STANDARD_RESULT';
     expression = `${a} - ${b}`;
     promptText = `Se tirarmos ${b} blocos de ${a}, quantos ficam?`;
-    speechText = `Rodada ${roundNumber}. Quanto é ${a} menos ${b}?`;
+    speechText = `Atividade ${roundNumber}. Quanto é ${a} menos ${b}?`;
     categoryLabel = 'Módulo 3 · Subtraindo e Desmontando';
     mentalMathTip = `Começando com ${a} e desmontando ${b} bloco(s), restam ${correctAnswer} (${b} + ${correctAnswer} = ${a}).`;
     visualBlocks = [
@@ -112,8 +129,9 @@ function buildModuleQuestion(
       { count: Math.min(b, 10), colorHex: '#EF4444', label: `Tirar: -${b}` },
     ];
   } else {
-    // Module 4: Desafio dos Símbolos (×, ÷, +, -)
+    // Module 4: Desafio dos Símbolos (×, ÷)
     const isMult = Math.random() > 0.45;
+    equationFormat = 'STANDARD_RESULT';
     if (isMult) {
       const maxFactor = difficulty === 'EASY' ? 5 : difficulty === 'MEDIUM' ? 9 : 12;
       const a = randomInt(2, maxFactor);
@@ -150,7 +168,6 @@ function buildModuleQuestion(
     }
   }
 
-  // Generate 3 plausible kid-friendly distractors
   const distractors = new Set<number>();
   const candidateOffsets = [1, -1, 2, -2, 3, -3, 5, -4, 4, 6];
   for (const offset of candidateOffsets.sort(() => Math.random() - 0.5)) {
@@ -175,6 +192,8 @@ function buildModuleQuestion(
     roundNumber,
     totalRounds,
     expression,
+    equationFormat,
+    targetValue,
     promptText,
     speechText,
     terms,
@@ -186,7 +205,7 @@ function buildModuleQuestion(
     categoryLabel: isLightningRound ? `⭐ Rodada Estrela em Dobro (2x)` : categoryLabel,
     visualBlocks,
     startedAt: Date.now(),
-    durationMs: 15000,
+    durationMs: 18000,
     isLightningRound,
   };
 }
@@ -196,7 +215,7 @@ function createRoom(initialStatus: 'TITLE_MENU' | 'LOBBY' = 'TITLE_MENU'): Inter
   const defaultSettings: GameSettings = {
     mode: 'COMPETITIVE',
     difficulty: 'EASY',
-    moduleId: 'MODULE_2_ADDITION',
+    moduleId: 'MODULE_1_NUMBERS',
     totalRounds: 6,
     timePerQuestionSec: 18,
   };
@@ -212,17 +231,29 @@ function createRoom(initialStatus: 'TITLE_MENU' | 'LOBBY' = 'TITLE_MENU'): Inter
       teamTarget: 3600,
       pausedRemainingMs: null,
       lastPowerUpAnnouncement: null,
+      gameOverStartedAt: null,
+      gameOverDurationMs: 25000,
       lastUpdatedAt: Date.now(),
     },
     clients: new Set(),
     playerSockets: new Map(),
     roundTimer: null,
     revealTimer: null,
+    gameOverTimer: null,
     questionRemainingMs: 18000,
   };
 
   rooms.set(code, room);
   return room;
+}
+
+function rotateRoomPinCode(room: InternalRoom): string {
+  const oldCode = room.state.code;
+  const newCode = generatePinCode();
+  rooms.delete(oldCode);
+  room.state.code = newCode;
+  rooms.set(newCode, room);
+  return newCode;
 }
 
 function broadcastRoomState(room: InternalRoom) {
@@ -248,6 +279,32 @@ function clearRoomTimers(room: InternalRoom) {
     clearTimeout(room.revealTimer);
     room.revealTimer = null;
   }
+  if (room.gameOverTimer) {
+    clearTimeout(room.gameOverTimer);
+    room.gameOverTimer = null;
+  }
+}
+
+function transitionToGameOver(room: InternalRoom) {
+  clearRoomTimers(room);
+  const gameOverDurationMs = 25000;
+  room.state.status = 'GAME_OVER';
+  room.state.gameOverStartedAt = Date.now();
+  room.state.gameOverDurationMs = gameOverDurationMs;
+  for (const p of room.state.players) {
+    p.continueChoice = 'PENDING';
+  }
+  broadcastRoomState(room);
+
+  // Automatic return to TITLE_MENU if nobody presses Play Again within 25 seconds
+  room.gameOverTimer = setTimeout(() => {
+    clearRoomTimers(room);
+    room.state.status = 'TITLE_MENU';
+    room.state.currentQuestion = null;
+    room.state.gameOverStartedAt = null;
+    room.state.lastPowerUpAnnouncement = null;
+    broadcastRoomState(room);
+  }, gameOverDurationMs);
 }
 
 function startNextQuestion(room: InternalRoom, nextRoundNumber: number) {
@@ -268,6 +325,7 @@ function startNextQuestion(room: InternalRoom, nextRoundNumber: number) {
   room.state.currentQuestion = question;
   room.state.pausedRemainingMs = null;
   room.state.lastPowerUpAnnouncement = null;
+  room.state.gameOverStartedAt = null;
 
   for (const p of room.state.players) {
     p.currentAnswer = null;
@@ -289,7 +347,10 @@ function revealCurrentRound(room: InternalRoom) {
   const question = room.state.currentQuestion;
   if (!question) return;
 
+  const revealDurationMs = 5800;
   room.state.status = 'ROUND_REVEAL';
+  question.revealStartedAt = Date.now();
+  question.revealDurationMs = revealDurationMs;
 
   let roundTeamGain = 0;
   for (const p of room.state.players) {
@@ -321,12 +382,11 @@ function revealCurrentRound(room: InternalRoom) {
 
   room.revealTimer = setTimeout(() => {
     if (question.roundNumber >= room.state.settings.totalRounds) {
-      room.state.status = 'GAME_OVER';
-      broadcastRoomState(room);
+      transitionToGameOver(room);
     } else {
       startNextQuestion(room, question.roundNumber + 1);
     }
-  }, 5800);
+  }, revealDurationMs);
 }
 
 async function startServer() {
@@ -403,11 +463,9 @@ async function startServer() {
             if (existing) {
               existing.name = name;
               existing.avatarId = avatarId;
-              const avatarMeta =
-                PLAYER_AVATARS.find((a) => a.id === avatarId) ||
-                PLAYER_AVATARS[existing.slotIndex % PLAYER_AVATARS.length];
-              existing.color = avatarMeta.color;
+              existing.color = extractColorFromAvatarId(avatarId, existing.slotIndex);
               existing.isConnected = true;
+              existing.continueChoice = 'PENDING';
             } else {
               if (room.state.players.length >= 4) {
                 ws.send(
@@ -418,16 +476,15 @@ async function startServer() {
                 );
                 return;
               }
-              const slotIndex = room.state.players.length;
-              const avatarMeta =
-                PLAYER_AVATARS.find((a) => a.id === avatarId) ||
-                PLAYER_AVATARS[slotIndex % PLAYER_AVATARS.length];
+              const usedSlots = new Set(room.state.players.map((p) => p.slotIndex));
+              let slotIndex = 0;
+              while (usedSlots.has(slotIndex) && slotIndex < 4) slotIndex++;
 
               existing = {
                 id: playerId,
                 name,
-                avatarId: avatarMeta.id,
-                color: avatarMeta.color,
+                avatarId,
+                color: extractColorFromAvatarId(avatarId, slotIndex),
                 slotIndex,
                 score: 0,
                 stars: 0,
@@ -440,7 +497,7 @@ async function startServer() {
                 answerTimeMs: null,
                 lastPointsEarned: 0,
                 isConnected: true,
-                isHost: slotIndex === 0,
+                isHost: room.state.players.length === 0,
                 powerUpsUsed: {
                   FIFTY_FIFTY: false,
                   FREEZE_TIME: false,
@@ -448,6 +505,7 @@ async function startServer() {
                 },
                 eliminatedOptions: [],
                 doubleStarsActive: false,
+                continueChoice: 'PENDING',
               };
               room.state.players.push(existing);
             }
@@ -474,11 +532,69 @@ async function startServer() {
             break;
           }
 
+          case 'player:continue_decision': {
+            if (!currentRoom) return;
+            const targetId = String(msg.playerId || currentPlayerId || '');
+            const continueGame = Boolean(msg.continueGame);
+            const playerIndex = currentRoom.state.players.findIndex((p) => p.id === targetId);
+            if (playerIndex === -1) return;
+
+            if (continueGame) {
+              currentRoom.state.players[playerIndex].continueChoice = 'YES';
+              broadcastRoomState(currentRoom);
+            } else {
+              // Player chose NOT to continue: remove player from main screen, release phone login, and rotate QR code PIN!
+              const removedPlayer = currentRoom.state.players[playerIndex];
+              currentRoom.state.players.splice(playerIndex, 1);
+
+              // Reassign slot indices & host if needed
+              currentRoom.state.players.forEach((p, idx) => {
+                p.slotIndex = idx;
+              });
+              if (
+                removedPlayer.isHost &&
+                currentRoom.state.players.length > 0 &&
+                !currentRoom.state.players.some((p) => p.isHost)
+              ) {
+                currentRoom.state.players[0].isHost = true;
+              }
+
+              // Rotate room 4-digit PIN code so QR Code updates on the main TV screen
+              const newPinCode = rotateRoomPinCode(currentRoom);
+              currentRoom.state.lastPowerUpAnnouncement = `${removedPlayer.name} saiu do jogo · Novo PIN QR: ${newPinCode}`;
+
+              // Notify the leaving player's socket to clear login state
+              const leavingSocket = currentRoom.playerSockets.get(removedPlayer.id) || ws;
+              if (leavingSocket && leavingSocket.readyState === WebSocket.OPEN) {
+                leavingSocket.send(
+                  JSON.stringify({
+                    type: 'player:logged_out',
+                    playerId: removedPlayer.id,
+                    newRoomCode: newPinCode,
+                  })
+                );
+              }
+              currentRoom.playerSockets.delete(removedPlayer.id);
+
+              // If no players remain after leaving, return TV to TITLE_MENU
+              if (currentRoom.state.players.length === 0) {
+                clearRoomTimers(currentRoom);
+                currentRoom.state.status = 'TITLE_MENU';
+                currentRoom.state.currentQuestion = null;
+                currentRoom.state.gameOverStartedAt = null;
+              }
+
+              broadcastRoomState(currentRoom);
+            }
+            break;
+          }
+
           case 'game:set_status': {
             if (!currentRoom) return;
             if (msg.status === 'LOBBY' || msg.status === 'TITLE_MENU') {
               clearRoomTimers(currentRoom);
               currentRoom.state.status = msg.status;
+              currentRoom.state.gameOverStartedAt = null;
               broadcastRoomState(currentRoom);
             }
             break;
@@ -539,6 +655,7 @@ async function startServer() {
                 },
                 eliminatedOptions: [],
                 doubleStarsActive: false,
+                continueChoice: 'PENDING',
               });
             }
 
@@ -565,6 +682,7 @@ async function startServer() {
               };
               p.eliminatedOptions = [];
               p.doubleStarsActive = false;
+              p.continueChoice = 'PENDING';
             }
 
             startNextQuestion(currentRoom, 1);
@@ -589,14 +707,12 @@ async function startServer() {
             player.powerUpsUsed[powerUp] = true;
 
             if (powerUp === 'FIFTY_FIFTY') {
-              // Remove 2 wrong options exclusively for this player
               const wrongIndices = [0, 1, 2, 3]
                 .filter((idx) => idx !== question.correctIndex)
                 .sort(() => Math.random() - 0.5);
               player.eliminatedOptions = wrongIndices.slice(0, 2);
               currentRoom.state.lastPowerUpAnnouncement = `${player.name} usou Ajuda 50/50!`;
             } else if (powerUp === 'FREEZE_TIME') {
-              // Add +5 seconds to current question timer
               const bonusMs = 5000;
               question.durationMs += bonusMs;
               const elapsed = Date.now() - question.startedAt;
@@ -667,11 +783,9 @@ async function startServer() {
             const q = currentRoom.state.currentQuestion;
             if (!q) return;
             if (q.roundNumber >= currentRoom.state.settings.totalRounds) {
-              clearRoomTimers(currentRoom);
-              currentRoom.state.status = 'GAME_OVER';
-              broadcastRoomState(currentRoom);
+              transitionToGameOver(currentRoom);
             } else {
-              startNextQuestion(roomOrCurrent(currentRoom), q.roundNumber + 1);
+              startNextQuestion(currentRoom, q.roundNumber + 1);
             }
             break;
           }
@@ -704,6 +818,7 @@ async function startServer() {
             currentRoom.state.status = 'LOBBY';
             currentRoom.state.currentQuestion = null;
             currentRoom.state.teamScore = 0;
+            currentRoom.state.gameOverStartedAt = null;
             currentRoom.state.lastPowerUpAnnouncement = null;
             for (const p of currentRoom.state.players) {
               p.score = 0;
@@ -719,6 +834,7 @@ async function startServer() {
               };
               p.eliminatedOptions = [];
               p.doubleStarsActive = false;
+              p.continueChoice = 'PENDING';
             }
             broadcastRoomState(currentRoom);
             break;
@@ -768,10 +884,6 @@ async function startServer() {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Jogo de Matemática TV Server running on http://0.0.0.0:${PORT}`);
   });
-}
-
-function roomOrCurrent(r: InternalRoom): InternalRoom {
-  return r;
 }
 
 startServer();
