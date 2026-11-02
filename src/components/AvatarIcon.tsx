@@ -1,5 +1,8 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import {
+  ACHIEVEMENT_MEDALS,
+  AchievementMedalId,
   AvatarAccessoryId,
   AvatarBaseCharacterId,
   LearningModuleId,
@@ -438,3 +441,93 @@ export const MgnetSoftwareBadge: React.FC<{ onOpenParentalGate?: () => void }> =
     )}
   </div>
 );
+
+/**
+ * Animated 3D Achievement Medal Badge with Ribbon, Metallic Bezel, Specular Highlight & Motion
+ */
+export const Medal3DBadge: React.FC<{
+  medalId: AchievementMedalId;
+  size?: 'sm' | 'md' | 'lg';
+  delay?: number;
+  onClick?: () => void;
+}> = ({ medalId, size = 'md', delay = 0, onClick }) => {
+  const meta = ACHIEVEMENT_MEDALS[medalId] || ACHIEVEMENT_MEDALS.construtor_blocos;
+  const uid = React.useId().replace(/:/g, '');
+
+  const iconSizeClass =
+    size === 'sm' ? 'w-9 h-9' : size === 'lg' ? 'w-14 h-14' : 'w-11 h-11';
+
+  return (
+    <motion.div
+      initial={{ scale: 0, rotate: -18, y: 12 }}
+      animate={{ scale: 1, rotate: [0, -4, 4, 0], y: [0, -3, 0] }}
+      transition={{
+        scale: { type: 'spring', stiffness: 260, damping: 16, delay },
+        rotate: { duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay },
+        y: { duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay },
+      }}
+      onClick={onClick}
+      title={`${meta.title}: ${meta.description}`}
+      className={`inline-flex items-center gap-2 rounded-2xl bg-slate-950/90 border-2 border-white/30 px-2.5 py-1.5 shadow-lg ${
+        onClick ? 'cursor-pointer hover:border-[#FFD600] active:scale-95 transition-transform' : ''
+      }`}
+    >
+      <svg viewBox="0 0 64 64" fill="none" className={`${iconSizeClass} shrink-0 drop-shadow-md`}>
+        <defs>
+          <radialGradient id={`medal_grad_${uid}`} cx="32%" cy="28%" r="70%">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.7" />
+            <stop offset="40%" stopColor={meta.primaryColor} stopOpacity="1" />
+            <stop offset="100%" stopColor={meta.secondaryColor} stopOpacity="1" />
+          </radialGradient>
+        </defs>
+        {/* Top Hanging 3D Ribbon */}
+        <polygon points="18,4 29,4 33,24 22,24" fill={meta.ribbonColor} stroke="#FFFFFF" strokeWidth="1.5" />
+        <polygon points="46,4 35,4 31,24 42,24" fill={meta.ribbonColor} stroke="#FFFFFF" strokeWidth="1.5" />
+        {/* 3D Medal Outer Scalloped Gold Rim */}
+        <circle
+          cx="32"
+          cy="39"
+          r="20"
+          fill={meta.secondaryColor}
+          stroke="#FFFFFF"
+          strokeWidth="2.5"
+        />
+        {/* 3D Medal Metallic Inner Disc */}
+        <circle
+          cx="32"
+          cy="38"
+          r="16.5"
+          fill={`url(#medal_grad_${uid})`}
+          stroke="#FEF08A"
+          strokeWidth="1.8"
+        />
+        {/* Top Specular Gloss Highlight */}
+        <ellipse cx="27" cy="29" rx="8" ry="3.5" fill="#FFFFFF" fillOpacity="0.45" />
+        {/* Center 3D Symbol */}
+        <text
+          x="32"
+          y="44"
+          textAnchor="middle"
+          fill="#0F172A"
+          fontSize="17"
+          fontWeight="900"
+          fontFamily="Fredoka, sans-serif"
+        >
+          {meta.symbol}
+        </text>
+      </svg>
+
+      <div className="text-left min-w-0">
+        <div className="font-display font-black text-xs text-[#FFD600] leading-tight truncate">
+          {meta.title}
+        </div>
+        {size !== 'sm' && (
+          <div className="text-[10px] font-bold text-sky-100 leading-tight line-clamp-2">
+            {meta.description}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+

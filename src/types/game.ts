@@ -140,6 +140,81 @@ export const PLAYER_AVATARS: PlayerAvatar[] = [
   { id: 'panda_genius|#22C55E|headphones', label: 'Panda Gênio', color: '#22C55E', accentBg: 'rgba(34, 197, 94, 0.2)' },
 ];
 
+export type AchievementMedalId =
+  | 'mestre_soma'
+  | 'velocista'
+  | 'combo_imparavel'
+  | 'autodidata'
+  | 'cacador_estrelas'
+  | 'construtor_blocos';
+
+export interface AchievementMedalMeta {
+  id: AchievementMedalId;
+  title: string;
+  description: string;
+  primaryColor: string;
+  secondaryColor: string;
+  ribbonColor: string;
+  symbol: string;
+}
+
+export const ACHIEVEMENT_MEDALS: Record<AchievementMedalId, AchievementMedalMeta> = {
+  mestre_soma: {
+    id: 'mestre_soma',
+    title: 'Mestre da Soma',
+    description: 'Alta precisão nos cálculos (80% ou mais de acertos)!',
+    primaryColor: '#FFD600',
+    secondaryColor: '#D97706',
+    ribbonColor: '#007AFF',
+    symbol: '+',
+  },
+  velocista: {
+    id: 'velocista',
+    title: 'Velocista',
+    description: 'Respostas super rápidas em menos de 6 segundos em média!',
+    primaryColor: '#38BDF8',
+    secondaryColor: '#0284C7',
+    ribbonColor: '#EF4444',
+    symbol: '⚡',
+  },
+  combo_imparavel: {
+    id: 'combo_imparavel',
+    title: 'Sequência Imparável',
+    description: 'Acertou 3 ou mais desafios seguidos sem errar!',
+    primaryColor: '#F97316',
+    secondaryColor: '#C2410C',
+    ribbonColor: '#FFD600',
+    symbol: '🔥',
+  },
+  autodidata: {
+    id: 'autodidata',
+    title: 'Gênio sem Ajudas',
+    description: 'Acertou desafios sem usar nenhum botão de ajuda (Power-Up)!',
+    primaryColor: '#A855F7',
+    secondaryColor: '#7E22CE',
+    ribbonColor: '#22C55E',
+    symbol: '🧠',
+  },
+  cacador_estrelas: {
+    id: 'cacador_estrelas',
+    title: 'Caçador de Estrelas',
+    description: 'Conquistou 5 ou mais estrelas douradas na partida!',
+    primaryColor: '#22C55E',
+    secondaryColor: '#15803D',
+    ribbonColor: '#FFD600',
+    symbol: '⭐',
+  },
+  construtor_blocos: {
+    id: 'construtor_blocos',
+    title: 'Construtor Dedicado',
+    description: 'Completou a trilha de blocos com entusiasmo!',
+    primaryColor: '#EC4899',
+    secondaryColor: '#BE185D',
+    ribbonColor: '#007AFF',
+    symbol: '🧱',
+  },
+};
+
 export interface PlayerState {
   id: string;
   name: string;
@@ -162,6 +237,54 @@ export interface PlayerState {
   eliminatedOptions: number[];
   doubleStarsActive: boolean;
   continueChoice: 'PENDING' | 'YES' | 'NO';
+  medals: AchievementMedalId[];
+}
+
+export function evaluatePlayerMedals(
+  player: PlayerState,
+  totalRounds: number
+): AchievementMedalId[] {
+  const earned: AchievementMedalId[] = [];
+  const rounds = Math.max(1, totalRounds);
+  const accuracy = player.correctCount / rounds;
+
+  // 1. Mestre da Soma: >= 80% accuracy (or >= 4 correct answers)
+  if (accuracy >= 0.8 || player.correctCount >= Math.max(3, rounds - 1)) {
+    earned.push('mestre_soma');
+  }
+
+  // 2. Velocista: average answer time <= 6500ms with at least 2 correct answers
+  const avgTimeMs =
+    player.totalAnswered > 0 ? player.totalAnswerTimeMs / player.totalAnswered : 99999;
+  if (player.correctCount >= 2 && avgTimeMs <= 6500) {
+    earned.push('velocista');
+  }
+
+  // 3. Sequência Imparável: bestStreak >= 3
+  if (player.bestStreak >= 3) {
+    earned.push('combo_imparavel');
+  }
+
+  // 4. Gênio sem Ajudas: no power-ups used and at least 2 correct answers
+  const usedAnyPowerUp =
+    player.powerUpsUsed?.FIFTY_FIFTY ||
+    player.powerUpsUsed?.FREEZE_TIME ||
+    player.powerUpsUsed?.DOUBLE_STARS;
+  if (!usedAnyPowerUp && player.correctCount >= 2) {
+    earned.push('autodidata');
+  }
+
+  // 5. Caçador de Estrelas: >= 5 stars
+  if (player.stars >= 5) {
+    earned.push('cacador_estrelas');
+  }
+
+  // Always guarantee at least 1 positive Kid-Safe 3D medal for every participant!
+  if (earned.length === 0) {
+    earned.push('construtor_blocos');
+  }
+
+  return earned.slice(0, 4);
 }
 
 export interface VisualBlockGroup {

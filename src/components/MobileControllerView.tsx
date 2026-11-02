@@ -8,6 +8,7 @@ import {
   AvatarAccessoryId,
   AvatarBaseCharacterId,
   DifficultyLevel,
+  evaluatePlayerMedals,
   GameMode,
   LEARNING_MODULES,
   LearningModuleId,
@@ -17,12 +18,15 @@ import {
 } from '../types/game.ts';
 import {
   AvatarIcon,
+  Medal3DBadge,
   MgnetSoftwareBadge,
   Module3DIllustration,
   NumberCube3D,
 } from './AvatarIcon.tsx';
+import { PWAInstallButton } from './PWAInstallButton.tsx';
 import { soundEngine } from '../utils/sound.ts';
 import {
+  Award,
   CheckCircle2,
   Clock,
   Crown,
@@ -171,20 +175,23 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
           isEmbeddedPiP ? 'h-full' : 'min-h-screen'
         } w-full bg-gradient-to-b from-[#007AFF] via-[#072B59] to-[#0A192F] text-[#F8FAFC] flex flex-col justify-between p-4 sm:p-6`}
       >
-        <header className="flex items-center justify-between gap-3 pb-3 border-b border-white/15">
+        <header className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/15">
           <span className="title-3d-yellow font-display font-black text-xl tracking-tight whitespace-nowrap shrink-0">
             Jogo de Matemática
           </span>
-          {!isEmbeddedPiP && onSwitchToTvMode && (
-            <button
-              type="button"
-              onClick={onSwitchToTvMode}
-              className="cube-3d min-h-[46px] px-4 py-2 rounded-2xl bg-[#FFD600] hover:bg-[#FACC15] text-xs font-black text-slate-950 flex items-center gap-1.5 whitespace-nowrap shrink-0"
-            >
-              <Tv className="w-4 h-4" />
-              <span>Voltar à Apresentação na TV</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {!isEmbeddedPiP && <PWAInstallButton compact />}
+            {!isEmbeddedPiP && onSwitchToTvMode && (
+              <button
+                type="button"
+                onClick={onSwitchToTvMode}
+                className="cube-3d min-h-[42px] px-3.5 py-1.5 rounded-2xl bg-[#FFD600] hover:bg-[#FACC15] text-xs font-black text-slate-950 flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              >
+                <Tv className="w-4 h-4" />
+                <span>Apresentação na TV</span>
+              </button>
+            )}
+          </div>
         </header>
 
         <form onSubmit={handleJoinSubmit} className="my-auto py-3 max-w-md w-full mx-auto space-y-4">
@@ -455,6 +462,7 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {!isEmbeddedPiP && <PWAInstallButton compact />}
           {!isEmbeddedPiP && onSwitchToTvMode && (
             <button
               type="button"
@@ -867,6 +875,31 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
               </div>
               <div className="text-xs font-bold text-sky-200 tabular-nums">
                 Acertos: {myPlayer.correctCount} de {roomState.settings.totalRounds} atividades
+              </div>
+
+              {/* Player's Earned 3D Animated Medals */}
+              <div className="pt-2 space-y-1.5">
+                <div className="flex items-center justify-center gap-1 text-xs font-black text-[#FFD600] uppercase">
+                  <Award className="w-4 h-4" />
+                  <span>Suas Medalhas 3D Conquistadas:</span>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {(myPlayer.medals && myPlayer.medals.length > 0
+                    ? myPlayer.medals
+                    : evaluatePlayerMedals(myPlayer, roomState.settings.totalRounds)
+                  ).map((mId, idx) => (
+                    <Medal3DBadge
+                      key={mId}
+                      medalId={mId}
+                      size="md"
+                      delay={idx * 0.15}
+                      onClick={() => {
+                        soundEngine.vibrate('success');
+                        soundEngine.playMedalFanfare();
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
 

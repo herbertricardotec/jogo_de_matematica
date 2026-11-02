@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import {
   ANSWER_OPTIONS_META,
   DifficultyLevel,
+  evaluatePlayerMedals,
   GameMode,
   LEARNING_MODULES,
   LearningModuleId,
@@ -15,13 +16,16 @@ import { StudioStageCanvas } from './StudioStageCanvas.tsx';
 import {
   AvatarIcon,
   KidsMathSplashHero,
+  Medal3DBadge,
   MgnetSoftwareBadge,
   Module3DIllustration,
   NumberCube3D,
 } from './AvatarIcon.tsx';
 import { MobileControllerView } from './MobileControllerView.tsx';
+import { PWAInstallButton } from './PWAInstallButton.tsx';
 import { soundEngine } from '../utils/sound.ts';
 import {
+  Award,
   Check,
   Clock,
   Crown,
@@ -34,6 +38,7 @@ import {
   QrCode,
   RotateCcw,
   Smartphone,
+  Sparkles,
   Trophy,
   Volume2,
   VolumeX,
@@ -64,6 +69,7 @@ interface FireTvStageViewProps {
   onSimAnswer: (optionIndex: number) => void;
   onSimUsePowerUp: (powerUp: PowerUpType) => void;
   onSimContinueDecision: (continueGame: boolean) => void;
+  onCelebrateMedals?: () => void;
 }
 
 /**
@@ -157,6 +163,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   onSimAnswer,
   onSimUsePowerUp,
   onSimContinueDecision,
+  onCelebrateMedals,
 }) => {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [muted, setMuted] = useState<boolean>(soundEngine.isMuted());
@@ -476,8 +483,9 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
           </div>
         </div>
 
-        {/* Right Zone: Voice Narrator, Simulator & Audio Controls */}
+        {/* Right Zone: PWA Install/Fullscreen, Voice Narrator, Simulator & Audio Controls */}
         <div className="flex items-center gap-2 shrink-0">
+          <PWAInstallButton />
           <button
             type="button"
             data-tv-focusable="true"
@@ -970,51 +978,82 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-left">
               {[...roomState.players]
                 .sort((a, b) => b.score - a.score)
-                .map((p, idx) => (
-                  <div
-                    key={p.id}
-                    className={`p-3.5 rounded-2xl border-2 ${
-                      idx === 0
-                        ? 'bg-[#007AFF]/30 border-[#FFD600]'
-                        : 'bg-slate-900 border-slate-700'
-                    } space-y-2`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-display font-black text-sm text-[#FFD600]">
-                        #{idx + 1} · ⭐ {p.stars} Estrelas
-                      </span>
-                      {idx === 0 && <Crown className="w-4 h-4 text-[#FFD600]" />}
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <AvatarIcon avatarId={p.avatarId} className="w-11 h-11 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="font-display font-black text-base text-white truncate">
-                          {p.name}
+                .map((p, idx) => {
+                  const playerMedals =
+                    p.medals && p.medals.length > 0
+                      ? p.medals
+                      : evaluatePlayerMedals(p, roomState.settings.totalRounds);
+                  return (
+                    <div
+                      key={p.id}
+                      className={`p-3.5 rounded-2xl border-2 ${
+                        idx === 0
+                          ? 'bg-[#007AFF]/30 border-[#FFD600]'
+                          : 'bg-slate-900 border-slate-700'
+                      } space-y-2.5 flex flex-col justify-between`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-display font-black text-sm text-[#FFD600]">
+                            #{idx + 1} · ⭐ {p.stars} Estrelas
+                          </span>
+                          {idx === 0 && <Crown className="w-4 h-4 text-[#FFD600]" />}
                         </div>
-                        <div className="font-mono font-black text-lg text-[#22C55E] tabular-nums">
-                          {p.score} pts
+                        <div className="flex items-center gap-2.5">
+                          <AvatarIcon avatarId={p.avatarId} className="w-11 h-11 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="font-display font-black text-base text-white truncate">
+                              {p.name}
+                            </div>
+                            <div className="font-mono font-black text-lg text-[#22C55E] tabular-nums">
+                              {p.score} pts
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3D Animated Achievement Medals Earned by Player */}
+                        <div className="pt-1.5 border-t border-white/10 space-y-1.5">
+                          <div className="flex items-center gap-1 text-[10px] font-black uppercase text-[#FFD600]">
+                            <Award className="w-3.5 h-3.5" />
+                            <span>Medalhas 3D Conquistadas:</span>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            {playerMedals.map((mId, mIdx) => (
+                              <Medal3DBadge
+                                key={mId}
+                                medalId={mId}
+                                size="sm"
+                                delay={idx * 0.12 + mIdx * 0.15}
+                                onClick={() => {
+                                  soundEngine.playMedalFanfare();
+                                  onCelebrateMedals?.();
+                                }}
+                              />
+                            ))}
+                          </div>
                         </div>
                       </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-bold text-sky-200 pt-1 border-t border-white/10 tabular-nums">
+                        <span>
+                          Acertos: {p.correctCount}/{roomState.settings.totalRounds}
+                        </span>
+                        {p.continueChoice === 'YES' && (
+                          <span className="text-emerald-400 font-black">✓ Continua</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] font-bold text-sky-200 pt-1 border-t border-white/10 tabular-nums">
-                      <span>
-                        Acertos: {p.correctCount}/{roomState.settings.totalRounds}
-                      </span>
-                      {p.continueChoice === 'YES' && (
-                        <span className="text-emerald-400 font-black">✓ Continua</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
 
-            <div className="pt-1 flex flex-wrap items-center justify-center gap-4">
+            <div className="pt-1 flex flex-wrap items-center justify-center gap-3.5">
               <button
                 type="button"
                 data-tv-focusable="true"
                 data-tv-primary="true"
                 onClick={onRestartGame}
-                className="tv-focusable cube-3d min-h-[54px] px-8 py-3 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-3 border-white text-white font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
+                className="tv-focusable cube-3d min-h-[54px] px-7 py-2.5 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-3 border-white text-white font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
               >
                 <RotateCcw className="w-5 h-5" />
                 <span>JOGAR NOVAMENTE (Enter)</span>
@@ -1023,8 +1062,21 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               <button
                 type="button"
                 data-tv-focusable="true"
+                onClick={() => {
+                  soundEngine.playMedalFanfare();
+                  onCelebrateMedals?.();
+                }}
+                className="tv-focusable cube-3d min-h-[54px] px-6 py-2.5 rounded-full bg-[#FFD600] hover:bg-[#FACC15] border-3 border-white text-slate-950 font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
+              >
+                <Sparkles className="w-5 h-5" />
+                <span>Celebrar Medalhas 3D &amp; Confete!</span>
+              </button>
+
+              <button
+                type="button"
+                data-tv-focusable="true"
                 onClick={() => onSetStatus('TITLE_MENU')}
-                className="tv-focusable cube-3d min-h-[54px] px-6 py-3 rounded-full bg-[#007AFF] hover:bg-[#0284C7] border-3 border-white text-white font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
+                className="tv-focusable cube-3d min-h-[54px] px-6 py-2.5 rounded-full bg-[#007AFF] hover:bg-[#0284C7] border-3 border-white text-white font-display font-black text-base flex items-center gap-2 whitespace-nowrap"
               >
                 <Home className="w-5 h-5" />
                 <span>Voltar à Tela Principal</span>

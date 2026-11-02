@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#007AFF" />
+      <stop offset="55%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#071936" />
+    </linearGradient>
+    <radialGradient id="cubeYellow" cx="30%" cy="25%" r="75%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="45%" stop-color="#FFD600" />
+      <stop offset="100%" stop-color="#B45309" />
+    </radialGradient>
+    <radialGradient id="cubeGreen" cx="30%" cy="25%" r="75%">
+      <stop offset="0%" stop-color="#86EFAC" />
+      <stop offset="45%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#15803D" />
+    </radialGradient>
+    <radialGradient id="cubeRed" cx="30%" cy="25%" r="75%">
+      <stop offset="0%" stop-color="#FCA5A5" />
+      <stop offset="45%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#B91C1C" />
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <rect x="24" y="24" width="464" height="464" rx="92" stroke="#FFFFFF" stroke-width="10" stroke-opacity="0.35" />
+
+  <!-- Top 3D Cube (3) -->
+  <rect x="176" y="76" width="160" height="148" rx="36" fill="url(#cubeRed)" stroke="#FFFFFF" stroke-width="10" />
+  <text x="256" y="176" text-anchor="middle" fill="#FFFFFF" font-family="Fredoka, Outfit, sans-serif" font-weight="900" font-size="92">3</text>
+
+  <!-- Bottom Left 3D Cube (1 +) -->
+  <rect x="76" y="252" width="164" height="156" rx="36" fill="url(#cubeGreen)" stroke="#FFFFFF" stroke-width="10" />
+  <text x="158" y="356" text-anchor="middle" fill="#FFFFFF" font-family="Fredoka, Outfit, sans-serif" font-weight="900" font-size="96">+</text>
+
+  <!-- Bottom Right 3D Cube (2) -->
+  <rect x="272" y="252" width="164" height="156" rx="36" fill="url(#cubeYellow)" stroke="#FFFFFF" stroke-width="10" />
+  <text x="354" y="356" text-anchor="middle" fill="#0F172A" font-family="Fredoka, Outfit, sans-serif" font-weight="900" font-size="92">2</text>
+
+  <!-- Bottom Banner -->
+  <rect x="96" y="428" width="320" height="44" rx="22" fill="#0A192F" stroke="#FFD600" stroke-width="5" />
+  <text x="256" y="457" text-anchor="middle" fill="#FFD600" font-family="Outfit, sans-serif" font-weight="900" font-size="22" letter-spacing="2">MATEMÁTICA TV</text>
+</svg>

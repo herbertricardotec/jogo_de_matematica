@@ -285,6 +285,37 @@ class SoundEngine {
       osc.stop(now + note.t + note.d + 0.02);
     });
   }
+
+  /**
+   * Som comemorativo especial de Medalha 3D e Chuva de Confetes
+   */
+  public playMedalFanfare() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    // Sparkling celebratory arpeggio + harmonic brass chord
+    const notes = [
+      { f: 523.25, t: 0.0, d: 0.16, type: 'triangle' as OscillatorType },
+      { f: 659.25, t: 0.09, d: 0.16, type: 'triangle' as OscillatorType },
+      { f: 783.99, t: 0.18, d: 0.18, type: 'triangle' as OscillatorType },
+      { f: 1046.5, t: 0.27, d: 0.45, type: 'triangle' as OscillatorType },
+      { f: 1318.5, t: 0.36, d: 0.55, type: 'sine' as OscillatorType },
+      { f: 1567.98, t: 0.45, d: 0.65, type: 'sine' as OscillatorType },
+    ];
+    notes.forEach((n) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = n.type;
+      osc.frequency.setValueAtTime(n.f, now + n.t);
+      gain.gain.setValueAtTime(0.16, now + n.t);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + n.t + n.d);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + n.t);
+      osc.stop(now + n.t + n.d + 0.03);
+    });
+  }
 }
 
 export const soundEngine = new SoundEngine();

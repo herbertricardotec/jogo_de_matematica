@@ -6,6 +6,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import {
   DifficultyLevel,
+  evaluatePlayerMedals,
   GameMode,
   GameSettings,
   LearningModuleId,
@@ -293,6 +294,7 @@ function transitionToGameOver(room: InternalRoom) {
   room.state.gameOverDurationMs = gameOverDurationMs;
   for (const p of room.state.players) {
     p.continueChoice = 'PENDING';
+    p.medals = evaluatePlayerMedals(p, room.state.settings.totalRounds);
   }
   broadcastRoomState(room);
 
@@ -506,6 +508,7 @@ async function startServer() {
                 eliminatedOptions: [],
                 doubleStarsActive: false,
                 continueChoice: 'PENDING',
+                medals: [],
               };
               room.state.players.push(existing);
             }
@@ -656,6 +659,7 @@ async function startServer() {
                 eliminatedOptions: [],
                 doubleStarsActive: false,
                 continueChoice: 'PENDING',
+                medals: [],
               });
             }
 
@@ -683,6 +687,7 @@ async function startServer() {
               p.eliminatedOptions = [];
               p.doubleStarsActive = false;
               p.continueChoice = 'PENDING';
+              p.medals = [];
             }
 
             startNextQuestion(currentRoom, 1);
@@ -835,6 +840,7 @@ async function startServer() {
               p.eliminatedOptions = [];
               p.doubleStarsActive = false;
               p.continueChoice = 'PENDING';
+              p.medals = [];
             }
             broadcastRoomState(currentRoom);
             break;
