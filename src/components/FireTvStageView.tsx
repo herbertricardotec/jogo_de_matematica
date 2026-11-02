@@ -28,6 +28,14 @@ import {
 } from './AvatarIcon.tsx';
 import { MobileControllerView } from './MobileControllerView.tsx';
 import { PWAInstallButton } from './PWAInstallButton.tsx';
+import {
+  clearHighScoreEntries,
+  GlobalSoundSettingsToggle,
+  HighScoreEntry,
+  HighScoreLeaderboardView,
+  loadHighScoreEntries,
+  recordMatchResultsToLeaderboard,
+} from './HighScoreLeaderboard.tsx';
 import { soundEngine } from '../utils/sound.ts';
 import {
   Award,
@@ -53,8 +61,6 @@ import {
   Trash2,
   Trophy,
   Users,
-  Volume2,
-  VolumeX,
   X,
 } from 'lucide-react';
 
@@ -96,8 +102,8 @@ interface FireTvStageViewProps {
 }
 
 /**
- * Spatial 2D D-Pad Navigation Helper for Amazon Fire TV Remote
- */
+  * Spatial 2D D-Pad Navigation Helper for Amazon Fire TV Remote
+  */
 function navigateSpatialDpad(direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'): boolean {
   const focusables = Array.from(
     document.querySelectorAll<HTMLElement>('[data-tv-focusable="true"]:not([disabled])')
@@ -197,16 +203,19 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   onCelebrateMedals,
 }) => {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
-  const [muted, setMuted] = useState<boolean>(soundEngine.isMuted());
   const [remainingSec, setRemainingSec] = useState<number>(18);
   const [remainingRatio, setRemainingRatio] = useState<number>(1);
   const [gameOverLeftSec, setGameOverLeftSec] = useState<number>(25);
   const [gameOverRatio, setGameOverRatio] = useState<number>(1);
   const [showVirtualPhone, setShowVirtualPhone] = useState<boolean>(false);
   const [showAdminPanel, setShowAdminPanel] = useState<boolean>(false);
-  const [adminTab, setAdminTab] = useState<'PLAYERS' | 'TEACHER_CREATOR' | 'PEDAGOGICAL_REPORT'>(
-    'PLAYERS'
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState<boolean>(false);
+  const [highScoreEntries, setHighScoreEntries] = useState<HighScoreEntry[]>(() =>
+    loadHighScoreEntries()
   );
+  const [adminTab, setAdminTab] = useState<
+    'PLAYERS' | 'TEACHER_CREATOR' | 'PEDAGOGICAL_REPORT' | 'HIGH_SCORES'
+  >('PLAYERS');
 
   // Modo Professor (Criador de Partidas Personalizadas) Form State
   const [termAInput, setTermAInput] = useState<string>('7');
@@ -222,6 +231,34 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   // Fire TV Stick (Amazon Silk), 1080p & 4K Auto-Fit Viewport Scaler + Fullscreen State
   const [tvScale, setTvScale] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Start gentle Background Music when stage mounts and unlock audio context on first interaction
+  useEffect(() => {
+    soundEngine.startBackgroundMusic();
+    const unlockAudio = () => {
+      soundEngine.startBackgroundMusic();
+    };
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      soundEngine.stopBackgroundMusic();
+    };
+  }, []);
+
+  // Automatically persist player results to localStorage when a game session finishes (GAME_OVER)
+  useEffect(() => {
+    if (roomState.status === 'GAME_OVER' && roomState.players.length > 0) {
+      const updated = recordMatchResultsToLeaderboard(roomState);
+      setHighScoreEntries(updated);
+    }
+  }, [roomState.status, roomState.gameOverStartedAt, roomState.players]);
+
+  const handleClearLeaderboard = () => {
+    clearHighScoreEntries();
+    setHighScoreEntries([]);
+  };
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -262,7 +299,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
         window.visualViewport.removeEventListener('resize', updateScaleAndFullscreen);
       }
     };
-  }, [roomState.status, showAdminPanel]);
+  }, [roomState.status, showAdminPanel, showLeaderboardModal]);
 
   const handleToggleFullscreen = () => {
     if (typeof document === 'undefined') return;
@@ -432,10 +469,6 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [roomState.status, onLocalTvAnswer, onTogglePause]);
 
-  const handleToggleMute = () => {
-    setMuted(soundEngine.toggleMute());
-  };
-
   const question = roomState.currentQuestion;
 
   // Render the 3D Equation on the TV — NEVER show the player's selected phone answer during QUESTION_ACTIVE!
@@ -512,9 +545,9 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
         className="tv-scaled-stage tv-safe-padding relative z-10 flex flex-col justify-between overflow-hidden px-3 py-1.5"
       >
         {/* TOP BAR HUD + ALWAYS-VISIBLE RECONNECTION QR CODE WIDGET */}
-        <header className="relative z-10 flex items-center justify-between gap-3 px-4 lg:px-6 py-2 rounded-2xl border-2 border-white/15 bg-[#0A192F]/95 shrink-0">
+        <header className="relative z-10 flex items-center justify-between gap-2.5 px-3.5 lg:px-5 py-1.5 rounded-2xl border-2 border-white/15 bg-[#0A192F]/95 shrink-0">
           {/* Left Zone: Prominent Brand Name */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               data-tv-focusable="true"
@@ -524,7 +557,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               <span className="w-6 h-6 rounded-lg bg-[#FFD600] text-slate-950 font-display font-black text-xs flex items-center justify-center">
                 +
               </span>
-              <span className="font-display font-black text-base sm:text-lg tracking-tight text-white whitespace-nowrap">
+              <span className="font-display font-black text-base tracking-tight text-white whitespace-nowrap">
                 Jogo de <span className="text-[#FFD600]">Matemática</span>
               </span>
             </button>
@@ -536,53 +569,71 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
             data-tv-focusable="true"
             onClick={() => setShowAdminPanel(true)}
             title="Abrir Tela Administrativa dos 4 Jogadores"
-            className="tv-focusable flex items-center gap-2.5 px-3.5 py-1 rounded-2xl bg-[#0F172A] hover:bg-slate-900 border-2 border-[#FFD600] shadow-md text-left transition-transform active:scale-95"
+            className="tv-focusable flex items-center gap-2 px-3 py-1 rounded-2xl bg-[#0F172A] hover:bg-slate-900 border-2 border-[#FFD600] shadow-md text-left transition-transform active:scale-95"
           >
             {qrDataUrl && (
               <img
                 src={qrDataUrl}
                 alt={`QR Code Sala ${roomState.code}`}
                 referrerPolicy="no-referrer"
-                className="w-9 h-9 rounded-lg bg-white p-0.5 shrink-0"
+                className="w-8 h-8 rounded-lg bg-white p-0.5 shrink-0"
               />
             )}
             <div className="leading-tight">
-              <div className="text-[10px] font-bold text-sky-300 uppercase">
+              <div className="text-[9px] font-bold text-sky-300 uppercase">
                 Conectar Celular (QR ou PIN)
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono font-black text-base text-[#FFD600] tracking-wider tabular-nums">
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono font-black text-sm text-[#FFD600] tracking-wider tabular-nums">
                   {roomState.code}
                 </span>
                 <span className="text-slate-500">·</span>
-                <span className="text-xs font-bold text-emerald-400 tabular-nums">
+                <span className="text-[11px] font-bold text-emerald-400 tabular-nums">
                   {roomState.players.length}/4 Controles
                 </span>
               </div>
             </div>
           </button>
 
-          {/* Right Zone: Fullscreen Fire TV Button, Admin Panel & Audio Controls */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Right Zone: Recordes Leaderboard, Fullscreen, Admin Panel & Global Independent Sound Controls */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {roomState.settings.useCustomQuestions &&
               (roomState.settings.customQuestions?.length ?? 0) > 0 && (
-                <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/20 border border-[#FFD600] text-[11px] font-black text-[#FFD600]">
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>Modo Professor Ativo ({roomState.settings.customQuestions?.length})</span>
+                <span className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/20 border border-[#FFD600] text-[10px] font-black text-[#FFD600]">
+                  <BookOpen className="w-3 h-3" />
+                  <span>Prof. ({roomState.settings.customQuestions?.length})</span>
                 </span>
               )}
 
             <button
               type="button"
               data-tv-focusable="true"
+              onClick={() => {
+                soundEngine.playTick();
+                setShowLeaderboardModal((v) => !v);
+              }}
+              title="Ver Ranking de Recordes Salvos (localStorage)"
+              className={`tv-focusable min-h-[36px] px-2.5 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+                showLeaderboardModal
+                  ? 'bg-[#FFD600] text-slate-950 border-2 border-white'
+                  : 'bg-amber-500/20 hover:bg-amber-500/30 text-[#FFD600] border border-[#FFD600]/60'
+              }`}
+            >
+              <Trophy className="w-3.5 h-3.5" />
+              <span>Recordes ({highScoreEntries.length})</span>
+            </button>
+
+            <button
+              type="button"
+              data-tv-focusable="true"
               onClick={handleToggleFullscreen}
               title="Ocultar barra do navegador no Fire TV Stick (Tela Cheia)"
-              className="tv-focusable min-h-[38px] px-3 py-1 rounded-xl bg-sky-700 hover:bg-sky-600 border border-white/40 text-xs font-extrabold text-white flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              className="tv-focusable min-h-[36px] px-2.5 py-1 rounded-xl bg-sky-700 hover:bg-sky-600 border border-white/40 text-xs font-extrabold text-white flex items-center gap-1.5 whitespace-nowrap shrink-0"
             >
               {isFullscreen ? (
-                <Minimize2 className="w-4 h-4 text-[#FFD600]" />
+                <Minimize2 className="w-3.5 h-3.5 text-[#FFD600]" />
               ) : (
-                <Maximize2 className="w-4 h-4 text-[#FFD600]" />
+                <Maximize2 className="w-3.5 h-3.5 text-[#FFD600]" />
               )}
               <span>{isFullscreen ? 'Sair Tela Cheia' : 'Tela Cheia TV'}</span>
             </button>
@@ -591,13 +642,13 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
               type="button"
               data-tv-focusable="true"
               onClick={() => setShowAdminPanel((v) => !v)}
-              className={`tv-focusable min-h-[38px] px-3.5 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+              className={`tv-focusable min-h-[36px] px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
                 showAdminPanel
                   ? 'bg-[#FFD600] text-slate-950 border-2 border-white'
                   : 'bg-[#A855F7] hover:bg-[#9333EA] text-white border border-white/40'
               }`}
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="w-3.5 h-3.5" />
               <span>Painel Admin</span>
             </button>
 
@@ -607,29 +658,18 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                 data-tv-focusable="true"
                 onClick={onTogglePause}
                 aria-label="Pausar jogo"
-                className="tv-focusable min-h-[38px] min-w-[38px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
+                className="tv-focusable min-h-[36px] min-w-[36px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
               >
                 {roomState.status === 'PAUSED' ? (
-                  <Play className="w-4 h-4 text-[#FFD600]" />
+                  <Play className="w-3.5 h-3.5 text-[#FFD600]" />
                 ) : (
-                  <Pause className="w-4 h-4" />
+                  <Pause className="w-3.5 h-3.5" />
                 )}
               </button>
             )}
 
-            <button
-              type="button"
-              data-tv-focusable="true"
-              onClick={handleToggleMute}
-              aria-label={muted ? 'Ativar áudio' : 'Silenciar áudio'}
-              className="tv-focusable min-h-[38px] min-w-[38px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
-            >
-              {muted ? (
-                <VolumeX className="w-4 h-4 text-rose-400" />
-              ) : (
-                <Volume2 className="w-4 h-4" />
-              )}
-            </button>
+            {/* Global Sound Settings Toggle: Independent Background Music & Sound Effects */}
+            <GlobalSoundSettingsToggle />
           </div>
         </header>
 
@@ -1236,6 +1276,19 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                 <button
                   type="button"
                   data-tv-focusable="true"
+                  onClick={() => {
+                    soundEngine.playTick();
+                    setShowLeaderboardModal(true);
+                  }}
+                  className="tv-focusable cube-3d min-h-[46px] px-5 py-2 rounded-full bg-[#A855F7] hover:bg-[#9333EA] border-3 border-white text-white font-display font-black text-sm flex items-center gap-2 whitespace-nowrap"
+                >
+                  <Trophy className="w-4 h-4 text-[#FFD600]" />
+                  <span>Ranking de Recordes ({highScoreEntries.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-tv-focusable="true"
                   onClick={() => onSetStatus('TITLE_MENU')}
                   className="tv-focusable cube-3d min-h-[46px] px-5 py-2 rounded-full bg-[#007AFF] hover:bg-[#0284C7] border-3 border-white text-white font-display font-black text-sm flex items-center gap-2 whitespace-nowrap"
                 >
@@ -1441,8 +1494,8 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                 </div>
               </div>
 
-              {/* Compact Single-Row 3-Column Navigation Tabs */}
-              <div className="grid grid-cols-3 gap-2.5 shrink-0">
+              {/* Compact Single-Row 4-Column Navigation Tabs */}
+              <div className="grid grid-cols-4 gap-2 shrink-0">
                 <button
                   type="button"
                   data-tv-focusable="true"
@@ -1450,14 +1503,14 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                     soundEngine.playTick();
                     setAdminTab('PLAYERS');
                   }}
-                  className={`tv-focusable cube-3d min-h-[38px] px-3 py-1.5 rounded-xl font-display font-black text-xs flex items-center justify-center gap-2 border-2 transition-all whitespace-nowrap ${
+                  className={`tv-focusable cube-3d min-h-[38px] px-2.5 py-1.5 rounded-xl font-display font-black text-[11px] flex items-center justify-center gap-1.5 border-2 transition-all whitespace-nowrap ${
                     adminTab === 'PLAYERS'
                       ? 'bg-[#FFD600] text-slate-950 border-white'
                       : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
                   }`}
                 >
-                  <Users className="w-4 h-4 shrink-0" />
-                  <span>Controle dos 4 Jogadores ({roomState.players.length}/4)</span>
+                  <Users className="w-3.5 h-3.5 shrink-0" />
+                  <span>4 Jogadores ({roomState.players.length}/4)</span>
                 </button>
 
                 <button
@@ -1467,16 +1520,15 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                     soundEngine.playTick();
                     setAdminTab('TEACHER_CREATOR');
                   }}
-                  className={`tv-focusable cube-3d min-h-[38px] px-3 py-1.5 rounded-xl font-display font-black text-xs flex items-center justify-center gap-2 border-2 transition-all whitespace-nowrap ${
+                  className={`tv-focusable cube-3d min-h-[38px] px-2.5 py-1.5 rounded-xl font-display font-black text-[11px] flex items-center justify-center gap-1.5 border-2 transition-all whitespace-nowrap ${
                     adminTab === 'TEACHER_CREATOR'
                       ? 'bg-[#22C55E] text-white border-white'
                       : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
                   }`}
                 >
-                  <BookOpen className="w-4 h-4 shrink-0" />
+                  <BookOpen className="w-3.5 h-3.5 shrink-0" />
                   <span>
-                    Modo Professor · Partidas Personalizadas (
-                    {roomState.settings.customQuestions?.length || 0})
+                    Modo Professor ({roomState.settings.customQuestions?.length || 0})
                   </span>
                 </button>
 
@@ -1487,14 +1539,31 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                     soundEngine.playTick();
                     setAdminTab('PEDAGOGICAL_REPORT');
                   }}
-                  className={`tv-focusable cube-3d min-h-[38px] px-3 py-1.5 rounded-xl font-display font-black text-xs flex items-center justify-center gap-2 border-2 transition-all whitespace-nowrap ${
+                  className={`tv-focusable cube-3d min-h-[38px] px-2.5 py-1.5 rounded-xl font-display font-black text-[11px] flex items-center justify-center gap-1.5 border-2 transition-all whitespace-nowrap ${
                     adminTab === 'PEDAGOGICAL_REPORT'
                       ? 'bg-[#A855F7] text-white border-white'
                       : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
                   }`}
                 >
-                  <BarChart3 className="w-4 h-4 shrink-0" />
-                  <span>Relatório Pedagógico Pós-Jogo (+, −, ×, ÷)</span>
+                  <BarChart3 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Relatório Pedagógico (+, −, ×, ÷)</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-tv-focusable="true"
+                  onClick={() => {
+                    soundEngine.playTick();
+                    setAdminTab('HIGH_SCORES');
+                  }}
+                  className={`tv-focusable cube-3d min-h-[38px] px-2.5 py-1.5 rounded-xl font-display font-black text-[11px] flex items-center justify-center gap-1.5 border-2 transition-all whitespace-nowrap ${
+                    adminTab === 'HIGH_SCORES'
+                      ? 'bg-[#F97316] text-white border-white'
+                      : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
+                  }`}
+                >
+                  <Trophy className="w-3.5 h-3.5 shrink-0" />
+                  <span>Ranking de Recordes ({highScoreEntries.length})</span>
                 </button>
               </div>
 
@@ -2102,6 +2171,31 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                   )}
                 </div>
               )}
+
+              {/* ABA 4: RANKING DE RECORDES PERSISTENTE (localStorage) */}
+              {adminTab === 'HIGH_SCORES' && (
+                <div className="flex-1 min-h-0">
+                  <HighScoreLeaderboardView
+                    entries={highScoreEntries}
+                    onClearEntries={handleClearLeaderboard}
+                    isEmbeddedInAdmin={true}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DE RANKING DE RECORDES PERSISTENTE (Inside scaled TV stage) */}
+        {showLeaderboardModal && (
+          <div className="absolute inset-0 z-50 bg-black/88 backdrop-blur-sm flex items-center justify-center p-2.5 overflow-hidden">
+            <div className="max-w-[1160px] w-full h-full max-h-[650px] rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] p-4 flex flex-col justify-between shadow-2xl panel-3d overflow-hidden">
+              <HighScoreLeaderboardView
+                entries={highScoreEntries}
+                onClearEntries={handleClearLeaderboard}
+                onClose={() => setShowLeaderboardModal(false)}
+                isEmbeddedInAdmin={false}
+              />
             </div>
           </div>
         )}

@@ -1,13 +1,39 @@
+type SoundSettingsListener = (state: { sfxMuted: boolean; bgmMuted: boolean }) => void;
+
 class SoundEngine {
   private ctx: AudioContext | null = null;
-  private muted: boolean = false;
+  private sfxMuted: boolean = false;
+  private bgmMuted: boolean = false;
   private isMobileController: boolean = false;
+  private bgmInterval: ReturnType<typeof setInterval> | null = null;
+  private bgmStep: number = 0;
+  private bgmActive: boolean = false;
+  private listeners: Set<SoundSettingsListener> = new Set();
 
   constructor() {
     if (typeof window !== 'undefined') {
-      const savedMute = window.localStorage.getItem('mathshow_muted');
-      this.muted = savedMute === 'true';
+      const legacyMute = window.localStorage.getItem('mathshow_muted');
+      const savedSfxMute = window.localStorage.getItem('mathshow_sfx_muted');
+      const savedBgmMute = window.localStorage.getItem('mathshow_bgm_muted');
+
+      this.sfxMuted =
+        savedSfxMute !== null ? savedSfxMute === 'true' : legacyMute === 'true';
+      this.bgmMuted =
+        savedBgmMute !== null ? savedBgmMute === 'true' : false;
     }
+  }
+
+  public subscribe(listener: SoundSettingsListener): () => void {
+    this.listeners.add(listener);
+    listener({ sfxMuted: this.sfxMuted, bgmMuted: this.bgmMuted });
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notifyListeners() {
+    const snapshot = { sfxMuted: this.sfxMuted, bgmMuted: this.bgmMuted };
+    this.listeners.forEach((fn) => fn(snapshot));
   }
 
   /**
@@ -16,10 +42,15 @@ class SoundEngine {
    */
   public setControllerMode(isController: boolean) {
     this.isMobileController = isController;
+    if (isController) {
+      this.stopBackgroundMusic();
+    } else {
+      this.startBackgroundMusic();
+    }
   }
 
-  private getContext(): AudioContext | null {
-    if (this.muted || this.isMobileController || typeof window === 'undefined') return null;
+  private getRawContext(): AudioContext | null {
+    if (this.isMobileController || typeof window === 'undefined') return null;
     if (!this.ctx) {
       const AudioCtx =
         window.AudioContext ||
@@ -34,19 +65,156 @@ class SoundEngine {
     return this.ctx;
   }
 
+  private getSfxContext(): AudioContext | null {
+    if (this.sfxMuted) return null;
+    return this.getRawContext();
+  }
+
+  private getBgmContext(): AudioContext | null {
+    if (this.bgmMuted) return null;
+    return this.getRawContext();
+  }
+
   public isMuted(): boolean {
-    return this.muted;
+    return this.sfxMuted && this.bgmMuted;
+  }
+
+  public isSfxMuted(): boolean {
+    return this.sfxMuted;
+  }
+
+  public isBgmMuted(): boolean {
+    return this.bgmMuted;
+  }
+
+  public toggleSfxMute(): boolean {
+    this.sfxMuted = !this.sfxMuted;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('mathshow_sfx_muted', String(this.sfxMuted));
+      window.localStorage.setItem('mathshow_muted', String(this.sfxMuted && this.bgmMuted));
+    }
+    if (!this.sfxMuted) {
+      this.playTick(false);
+    }
+    this.notifyListeners();
+    return this.sfxMuted;
+  }
+
+  public toggleBgmMute(): boolean {
+    this.bgmMuted = !this.bgmMuted;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('mathshow_bgm_muted', String(this.bgmMuted));
+      window.localStorage.setItem('mathshow_muted', String(this.sfxMuted && this.bgmMuted));
+    }
+    if (this.bgmMuted) {
+      this.stopBackgroundMusicLoopOnly();
+    } else {
+      this.startBackgroundMusic();
+      this.playBgmPreviewNote();
+    }
+    this.notifyListeners();
+    return this.bgmMuted;
   }
 
   public toggleMute(): boolean {
-    this.muted = !this.muted;
+    const nextMuteAll = !(this.sfxMuted && this.bgmMuted);
+    this.sfxMuted = nextMuteAll;
+    this.bgmMuted = nextMuteAll;
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('mathshow_muted', String(this.muted));
+      window.localStorage.setItem('mathshow_sfx_muted', String(this.sfxMuted));
+      window.localStorage.setItem('mathshow_bgm_muted', String(this.bgmMuted));
+      window.localStorage.setItem('mathshow_muted', String(nextMuteAll));
     }
-    if (!this.muted) {
-      this.playTick();
+    if (!this.sfxMuted) {
+      this.playTick(false);
     }
-    return this.muted;
+    if (this.bgmMuted) {
+      this.stopBackgroundMusicLoopOnly();
+    } else {
+      this.startBackgroundMusic();
+    }
+    this.notifyListeners();
+    return nextMuteAll;
+  }
+
+  /**
+   * Trilha Musical de Fundo (BGM) leve e alegre estilo Game Show Educativo 3D
+   */
+  public startBackgroundMusic() {
+    this.bgmActive = true;
+    if (this.isMobileController || this.bgmMuted) return;
+    if (this.bgmInterval) return;
+
+    // Melodia pentatônica suave em Dó Maior (C5, D5, E5, G5, A5)
+    const melodyNotes = [
+      523.25, // C5
+      659.25, // E5
+      783.99, // G5
+      659.25, // E5
+      587.33, // D5
+      659.25, // E5
+      523.25, // C5
+      392.0,  // G4
+      440.0,  // A4
+      523.25, // C5
+      659.25, // E5
+      587.33, // D5
+    ];
+
+    this.bgmInterval = setInterval(() => {
+      if (!this.bgmActive || this.bgmMuted || this.isMobileController) return;
+      const ctx = this.getBgmContext();
+      if (!ctx || ctx.state !== 'running') return;
+
+      const freq = melodyNotes[this.bgmStep % melodyNotes.length];
+      this.bgmStep = (this.bgmStep + 1) % melodyNotes.length;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      // Volume bem suave de fundo para não competir com os efeitos sonoros
+      gain.gain.setValueAtTime(0.028, now);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.36);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.38);
+    }, 450);
+  }
+
+  private stopBackgroundMusicLoopOnly() {
+    if (this.bgmInterval) {
+      clearInterval(this.bgmInterval);
+      this.bgmInterval = null;
+    }
+  }
+
+  public stopBackgroundMusic() {
+    this.bgmActive = false;
+    this.stopBackgroundMusicLoopOnly();
+  }
+
+  private playBgmPreviewNote() {
+    const ctx = this.getBgmContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [523.25, 659.25];
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+      gain.gain.setValueAtTime(0.06, now + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + idx * 0.08);
+      osc.stop(now + idx * 0.08 + 0.22);
+    });
   }
 
   /**
@@ -58,7 +226,6 @@ class SoundEngine {
     try {
       switch (pattern) {
         case 'question_start':
-          // Leve tremida no início de cada jogada
           navigator.vibrate(55);
           break;
         case 'tap':
@@ -80,7 +247,7 @@ class SoundEngine {
   }
 
   public playPlayerJoin() {
-    const ctx = this.getContext();
+    const ctx = this.getSfxContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
@@ -100,7 +267,7 @@ class SoundEngine {
   }
 
   public playBuzzerLock(slotIndex = 0) {
-    const ctx = this.getContext();
+    const ctx = this.getSfxContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
@@ -123,7 +290,7 @@ class SoundEngine {
   }
 
   public playPowerUp() {
-    const ctx = this.getContext();
+    const ctx = this.getSfxContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
@@ -146,7 +313,7 @@ class SoundEngine {
    * Som característico de Game Show para identificar claramente o início de cada pergunta na TV
    */
   public playNewQuestion() {
-    const ctx = this.getContext();
+    const ctx = this.getSfxContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
@@ -172,7 +339,7 @@ class SoundEngine {
   }
 
   public playTick(urgent = false) {
-    const ctx = this.getContext();
+    const ctx = this.getSfxContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
@@ -191,7 +358,7 @@ class SoundEngine {
   }
 
   public playRoundReveal(anyCorrect: boolean) {
-    const ctx = this.getContext();
+    const ctx = this.getSfxContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
@@ -227,7 +394,7 @@ class SoundEngine {
   }
 
   public playVictoryFanfare() {
-    const ctx = this.getContext();
+    const ctx = this.getSfxContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
@@ -258,7 +425,7 @@ class SoundEngine {
    * Som comemorativo especial de Medalha 3D e Chuva de Confetes na TV
    */
   public playMedalFanfare() {
-    const ctx = this.getContext();
+    const ctx = this.getSfxContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
