@@ -5,6 +5,7 @@ import {
   createEmptyOperationStats,
   CustomEquationItem,
   DifficultyLevel,
+  ensureUniquePlayerAvatar,
   evaluatePlayerMedals,
   GameMode,
   GameSettings,
@@ -434,7 +435,8 @@ export default async function handler(req: IncomingMessage & { body?: any; query
     if (type === 'room:join') {
       const playerId = String(body.playerId || `p_${Date.now()}`);
       const name = String(body.name || 'Jogador').trim().slice(0, 14) || 'Jogador';
-      const avatarId = String(body.avatarId || PLAYER_AVATARS[0].id);
+      const rawAvatarId = String(body.avatarId || PLAYER_AVATARS[0].id);
+      const avatarId = ensureUniquePlayerAvatar(rawAvatarId, room.players, playerId);
 
       let existing = room.players.find((p) => p.id === playerId && !p.isBot);
       if (existing) {

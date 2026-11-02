@@ -698,7 +698,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
 
               {/* 1-PLAYER ONLY: OPTION TO COMPETE AGAINST THE MACHINE (100%, 60%, 40%, 20%, RANDOM) */}
               {roomState.players.filter((p) => !p.isBot).length <= 1 && (
-                <div className="rounded-2xl bg-[#071936] border-2 border-[#A855F7]/70 p-3.5 space-y-2.5">
+                <div className="rounded-2xl bg-[#071936] border-2 border-[#A855F7]/70 p-3.5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <div className="w-10 h-10 rounded-2xl bg-[#A855F7]/25 border border-[#A855F7] flex items-center justify-center text-[#FFD600] shrink-0">
@@ -714,7 +714,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                           )}
                         </div>
                         <p className="text-xs font-semibold text-sky-200">
-                          A máquina responde aleatoriamente com objetivo de terminar o teste com 100%, 60%, 40% ou 20% de acertos!
+                          Exclusivo para 1 jogador: desafie o Robô da Matemática em tempo real!
                         </p>
                       </div>
                     </div>
@@ -726,7 +726,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                         soundEngine.playTick();
                         onConfigureGame({
                           vsMachine: !roomState.settings.vsMachine,
-                          botAccuracyMode: roomState.settings.botAccuracyMode || 'RANDOM',
+                          botAccuracyMode: 'RANDOM',
                         });
                       }}
                       className={`tv-focusable cube-3d min-h-[42px] px-4 py-2 rounded-2xl font-display font-black text-xs border-2 transition-all whitespace-nowrap ${
@@ -740,49 +740,6 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                         : '🤖 Disputar contra a Máquina'}
                     </button>
                   </div>
-
-                  {roomState.settings.vsMachine && (
-                    <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-xs font-extrabold text-[#FFD600]">
-                        Objetivo de acertos da Máquina:
-                      </span>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {(
-                          [
-                            { mode: 'RANDOM', label: '🎲 Aleatoriamente (Sorteia)' },
-                            { mode: 100, label: '🏆 100% de acertos' },
-                            { mode: 60, label: '⚡ 60% de acertos' },
-                            { mode: 40, label: '🎯 40% de acertos' },
-                            { mode: 20, label: '🌱 20% de acertos' },
-                          ] as { mode: BotAccuracyMode; label: string }[]
-                        ).map((opt) => {
-                          const currentMode = roomState.settings.botAccuracyMode || 'RANDOM';
-                          const isSelected = currentMode === opt.mode;
-                          return (
-                            <button
-                              key={String(opt.mode)}
-                              type="button"
-                              data-tv-focusable="true"
-                              onClick={() => {
-                                soundEngine.playTick();
-                                onConfigureGame({
-                                  vsMachine: true,
-                                  botAccuracyMode: opt.mode,
-                                });
-                              }}
-                              className={`tv-focusable min-h-[36px] px-3 py-1 rounded-xl text-xs font-black border-2 transition-all whitespace-nowrap ${
-                                isSelected
-                                  ? 'bg-[#FFD600] text-slate-950 border-white scale-105'
-                                  : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1148,8 +1105,8 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                           %)
                         </span>
                         {p.isBot ? (
-                          <span className="text-[#FFD600] font-black">
-                            🤖 Meta: {p.botTargetAccuracyPct || roomState.settings.resolvedBotTargetPct || 60}%
+                          <span className="text-[#A855F7] font-black">
+                            🤖 Máquina 3D
                           </span>
                         ) : (
                           p.continueChoice === 'YES' && (

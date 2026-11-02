@@ -10,6 +10,7 @@ import {
   createEmptyOperationStats,
   CustomEquationItem,
   DifficultyLevel,
+  ensureUniquePlayerAvatar,
   evaluatePlayerMedals,
   GameMode,
   GameSettings,
@@ -562,7 +563,12 @@ async function startServer() {
 
             const playerId = String(msg.playerId || `p_${Date.now()}`);
             const name = String(msg.name || 'Jogador').trim().slice(0, 14) || 'Jogador';
-            const avatarId = String(msg.avatarId || PLAYER_AVATARS[0].id);
+            const rawAvatarId = String(msg.avatarId || PLAYER_AVATARS[0].id);
+            const avatarId = ensureUniquePlayerAvatar(
+              rawAvatarId,
+              room.state.players,
+              playerId
+            );
 
             let existing = room.state.players.find((p) => p.id === playerId && !p.isBot);
             if (existing) {

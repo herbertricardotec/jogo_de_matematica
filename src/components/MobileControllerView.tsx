@@ -7,8 +7,10 @@ import {
   AVATAR_BASE_CHARACTERS,
   AvatarAccessoryId,
   AvatarBaseCharacterId,
+  AvatarCategory,
   BotAccuracyMode,
   DifficultyLevel,
+  ensureUniquePlayerAvatar,
   evaluatePlayerMedals,
   GameMode,
   LEARNING_MODULES,
@@ -92,9 +94,10 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
     return '';
   });
 
-  // 3D Avatar Generator State (Kids & Teens — Male & Female)
-  const [baseCharacter, setBaseCharacter] = useState<AvatarBaseCharacterId>('leo_infantil_m');
-  const [avatarColor, setAvatarColor] = useState<string>('#F97316');
+  // 3D Avatar Generator State (Blocos Sorridentes 3D, Animais 3D & Estudantes 3D)
+  const [avatarTab, setAvatarTab] = useState<'DESTAQUES' | AvatarCategory>('DESTAQUES');
+  const [baseCharacter, setBaseCharacter] = useState<AvatarBaseCharacterId>('cube_happy');
+  const [avatarColor, setAvatarColor] = useState<string>('#007AFF');
   const [avatarAccessory, setAvatarAccessory] = useState<AvatarAccessoryId>('none');
 
   const [remainingRatio, setRemainingRatio] = useState<number>(1);
@@ -105,6 +108,31 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
       setPinCode(initialRoomCode);
     }
   }, [initialRoomCode]);
+
+  // Identify avatars and colors already used by other players on the TV to guarantee a unique visual identity
+  const otherConnectedPlayers = (roomState?.players || []).filter(
+    (p) => !p.isBot && p.id !== playerId
+  );
+  const usedCharactersOnTv = new Set(
+    otherConnectedPlayers.map((p) => (p.avatarId || '').split('|')[0])
+  );
+  const usedColorsOnTv = new Set(
+    otherConnectedPlayers.map((p) => (p.avatarId || '').split('|')[1])
+  );
+
+  // Automatically switch to an unused 3D avatar & color if another player on the TV already took the current one
+  useEffect(() => {
+    if (usedCharactersOnTv.has(baseCharacter)) {
+      const freePreset = AVATAR_BASE_CHARACTERS.find((c) => !usedCharactersOnTv.has(c.id));
+      if (freePreset) {
+        setBaseCharacter(freePreset.id);
+        const freeCol = !usedColorsOnTv.has(freePreset.defaultColor)
+          ? freePreset.defaultColor
+          : AVATAR_3D_COLORS.find((c) => !usedColorsOnTv.has(c.hex))?.hex || freePreset.defaultColor;
+        setAvatarColor(freeCol);
+      }
+    }
+  }, [roomState?.players, baseCharacter]);
 
   const composedAvatarId = `${baseCharacter}|${avatarColor}|${avatarAccessory}`;
   const myPlayer: PlayerState | undefined = roomState?.players.find((p) => p.id === playerId);
@@ -138,10 +166,14 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
   }, [roomState]);
 
   const handleRandomizeAvatar = () => {
-    const randChar =
-      AVATAR_BASE_CHARACTERS[Math.floor(Math.random() * AVATAR_BASE_CHARACTERS.length)];
-    const randColor =
-      AVATAR_3D_COLORS[Math.floor(Math.random() * AVATAR_3D_COLORS.length)];
+    const availableChars = AVATAR_BASE_CHARACTERS.filter((c) => !usedCharactersOnTv.has(c.id));
+    const pool = availableChars.length > 0 ? availableChars : AVATAR_BASE_CHARACTERS;
+    const randChar = pool[Math.floor(Math.random() * pool.length)];
+
+    const availableColors = AVATAR_3D_COLORS.filter((c) => !usedColorsOnTv.has(c.hex));
+    const colorPool = availableColors.length > 0 ? availableColors : AVATAR_3D_COLORS;
+    const randColor = colorPool[Math.floor(Math.random() * colorPool.length)];
+
     const randAcc =
       AVATAR_ACCESSORIES[Math.floor(Math.random() * AVATAR_ACCESSORIES.length)];
     setBaseCharacter(randChar.id);
@@ -157,7 +189,12 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('mathshow_player_name', cleanName);
     }
-    onJoinRoom(cleanPin, cleanName, composedAvatarId);
+    const uniqueAvatarId = ensureUniquePlayerAvatar(
+      composedAvatarId,
+      roomState?.players || [],
+      playerId
+    );
+    onJoinRoom(cleanPin, cleanName, uniqueAvatarId);
   };
 
   // 1. LOGIN SCREEN WITH INTERACTIVE 3D AVATAR GENERATOR
@@ -204,9 +241,8 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                 </motion.div>
                 <div>
                   <div className="text-[11px] font-black uppercase text-[#FFD600]">
-                    Avatar 3D ·{' '}
-                    {AVATAR_BASE_CHARACTERS.find((c) => c.id === baseCharacter)?.ageGroup} (
-                    {AVATAR_BASE_CHARACTERS.find((c) => c.id === baseCharacter)?.gender})
+                    Identidade Única na TV ·{' '}
+                    {AVATAR_BASE_CHARACTERS.find((c) => c.id === baseCharacter)?.categoryLabel}
                   </div>
                   <div className="font-display font-black text-base text-white">
                     {AVATAR_BASE_CHARACTERS.find((c) => c.id === baseCharacter)?.label}
@@ -227,28 +263,82 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
               </button>
             </div>
 
-            {/* Step 1: Base 3D Character Selection (Infantil & Adolescente, Masculino & Feminino) */}
-            <div className="space-y-1">
-              <div className="text-[11px] font-extrabold text-sky-200">
-                1. Avatar 3D (Infantil e Adolescente · Masculino e Feminino):
+            {/* Step 1: 3D Avatar Selector (Blocos Sorridentes 3D, Animais 3D & Estudantes 3D) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[11px] font-extrabold text-sky-200">
+                  1. Escolha seu Avatar 3D exclusivo na TV:
+                </div>
+                {usedCharactersOnTv.size > 0 && (
+                  <span className="text-[10px] font-black text-[#FFD600]">
+                    {usedCharactersOnTv.size} em uso na sala
+                  </span>
+                )}
               </div>
+
+              {/* Category Filter Tabs */}
+              <div className="grid grid-cols-4 gap-1">
+                {(
+                  [
+                    { id: 'DESTAQUES', label: '🎲 Blocos & Animais' },
+                    { id: 'BLOCOS', label: '😊 Blocos 3D' },
+                    { id: 'ANIMAIS', label: '🐾 Animais 3D' },
+                    { id: 'ESTUDANTES', label: '🧒 Estudantes' },
+                  ] as { id: 'DESTAQUES' | AvatarCategory; label: string }[]
+                ).map((tab) => {
+                  const isTabActive = avatarTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setAvatarTab(tab.id)}
+                      className={`px-1.5 py-1.5 rounded-xl text-[10px] font-black border transition-all truncate ${
+                        isTabActive
+                          ? 'bg-[#FFD600] text-slate-950 border-white shadow'
+                          : 'bg-slate-900 text-sky-200 border-slate-700'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="grid grid-cols-4 gap-1.5">
-                {AVATAR_BASE_CHARACTERS.map((preset) => {
+                {AVATAR_BASE_CHARACTERS.filter((preset) =>
+                  avatarTab === 'DESTAQUES'
+                    ? preset.category === 'BLOCOS' || preset.category === 'ANIMAIS'
+                    : preset.category === avatarTab
+                ).map((preset) => {
                   const active = baseCharacter === preset.id;
+                  const isTakenByOther = usedCharactersOnTv.has(preset.id);
                   return (
                     <button
                       key={preset.id}
                       type="button"
+                      disabled={isTakenByOther}
                       onClick={() => {
+                        if (isTakenByOther) return;
                         setBaseCharacter(preset.id);
-                        setAvatarColor(preset.defaultColor);
+                        const preferredColor = !usedColorsOnTv.has(preset.defaultColor)
+                          ? preset.defaultColor
+                          : AVATAR_3D_COLORS.find((c) => !usedColorsOnTv.has(c.hex))?.hex ||
+                            preset.defaultColor;
+                        setAvatarColor(preferredColor);
                       }}
-                      className={`p-1.5 rounded-xl border-2 flex flex-col items-center gap-0.5 transition-transform active:scale-95 ${
-                        active
+                      className={`relative p-1.5 rounded-xl border-2 flex flex-col items-center gap-0.5 transition-transform active:scale-95 ${
+                        isTakenByOther
+                          ? 'bg-slate-950/60 border-rose-500/40 opacity-45 cursor-not-allowed'
+                          : active
                           ? 'bg-[#007AFF]/40 border-[#FFD600] scale-105'
-                          : 'bg-slate-900/80 border-slate-800 opacity-85'
+                          : 'bg-slate-900/80 border-slate-800 opacity-90'
                       }`}
                     >
+                      {isTakenByOther && (
+                        <span className="absolute top-1 right-1 px-1 py-0.2 rounded bg-rose-600 text-[8px] font-black text-white uppercase z-10">
+                          Em uso
+                        </span>
+                      )}
                       <AvatarIcon
                         avatarId={`${preset.id}|${
                           active ? avatarColor : preset.defaultColor
@@ -256,11 +346,16 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                         className="w-11 h-11"
                       />
                       <span className="text-[10px] font-extrabold text-white truncate max-w-full">
-                        {preset.label.split(' ')[0]}
+                        {preset.label.split(' (')[0]}
                       </span>
-                      <span className="text-[9px] font-bold text-sky-300 leading-none">
-                        {preset.ageGroup === 'Infantil' ? 'Infantil' : 'Teen'} ·{' '}
-                        {preset.gender === 'Masculino' ? 'M' : 'F'}
+                      <span className="text-[9px] font-bold text-sky-300 leading-none truncate max-w-full">
+                        {preset.category === 'BLOCOS'
+                          ? 'Bloco 3D'
+                          : preset.category === 'ANIMAIS'
+                          ? 'Animal 3D'
+                          : `${preset.ageGroup === 'Infantil' ? 'Infantil' : 'Teen'} · ${
+                              preset.gender === 'Masculino' ? 'M' : 'F'
+                            }`}
                       </span>
                     </button>
                   );
@@ -542,9 +637,9 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                   ))}
                 </div>
 
-                {/* 1-PLAYER ONLY: OPTION TO COMPETE AGAINST THE MACHINE (100%, 60%, 40%, 20%, RANDOM) */}
+                {/* 1-PLAYER ONLY: OPTION TO COMPETE AGAINST THE MACHINE (TARGET ACCURACY RANDOMLY SELECTED BY SYSTEM) */}
                 {roomState.players.filter((p) => !p.isBot).length <= 1 && (
-                  <div className="rounded-2xl bg-slate-900/95 border-2 border-purple-400/50 p-3 space-y-2.5">
+                  <div className="rounded-2xl bg-slate-900/95 border-2 border-purple-400/50 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <Bot className="w-5 h-5 text-[#A855F7]" />
@@ -562,7 +657,7 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                         onClick={() => {
                           onConfigureGame({
                             vsMachine: !roomState.settings.vsMachine,
-                            botAccuracyMode: roomState.settings.botAccuracyMode || 'RANDOM',
+                            botAccuracyMode: 'RANDOM',
                           });
                         }}
                         className={`cube-3d px-3 py-1.5 rounded-xl text-xs font-black border-2 transition-all whitespace-nowrap ${
@@ -574,49 +669,6 @@ export const MobileControllerView: React.FC<MobileControllerViewProps> = ({
                         {roomState.settings.vsMachine ? '✓ Ativado' : 'Ativar Máquina'}
                       </button>
                     </div>
-
-                    {roomState.settings.vsMachine && (
-                      <div className="space-y-1.5 pt-1 border-t border-white/10">
-                        <div className="text-[11px] font-extrabold text-[#FFD600]">
-                          Objetivo de acertos da Máquina no teste:
-                        </div>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {(
-                            [
-                              { mode: 'RANDOM', label: '🎲 Aleatório' },
-                              { mode: 100, label: '100% acertos' },
-                              { mode: 60, label: '60% acertos' },
-                              { mode: 40, label: '40% acertos' },
-                              { mode: 20, label: '20% acertos' },
-                            ] as { mode: BotAccuracyMode; label: string }[]
-                          ).map((opt) => {
-                            const currentMode = roomState.settings.botAccuracyMode || 'RANDOM';
-                            const isActive = currentMode === opt.mode;
-                            return (
-                              <button
-                                key={String(opt.mode)}
-                                type="button"
-                                onClick={() =>
-                                  onConfigureGame({
-                                    vsMachine: true,
-                                    botAccuracyMode: opt.mode,
-                                  })
-                                }
-                                className={`min-h-[38px] px-2 py-1 rounded-xl text-[11px] font-black border transition-colors ${
-                                  isActive
-                                    ? 'bg-[#FFD600] text-slate-950 border-white'
-                                    : 'bg-slate-950 text-slate-300 border-slate-700'
-                                } ${opt.mode === 'RANDOM' ? 'col-span-3' : ''}`}
-                              >
-                                {opt.mode === 'RANDOM'
-                                  ? '🎲 Aleatoriamente (Sorteia 100%, 60%, 40% ou 20%)'
-                                  : opt.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
 

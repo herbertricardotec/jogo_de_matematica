@@ -146,7 +146,17 @@ export interface GameSettings {
   resolvedBotTargetPct?: BotTargetAccuracy;
 }
 
+export type AvatarCategory = 'BLOCOS' | 'ANIMAIS' | 'ESTUDANTES';
+
 export type AvatarBaseCharacterId =
+  | 'cube_happy'
+  | 'cube_star'
+  | 'cube_genius'
+  | 'robo_calc'
+  | 'fox_scientist'
+  | 'owl_student'
+  | 'panda_genius'
+  | 'cat_astro'
   | 'leo_infantil_m'
   | 'bia_infantil_f'
   | 'kaua_infantil_m'
@@ -155,12 +165,6 @@ export type AvatarBaseCharacterId =
   | 'maya_teen_f'
   | 'gui_teen_m'
   | 'lara_teen_f'
-  | 'cube_happy'
-  | 'owl_student'
-  | 'fox_scientist'
-  | 'panda_genius'
-  | 'cat_astro'
-  | 'robo_calc'
   | 'boy_blue'
   | 'girl_pink';
 
@@ -169,15 +173,94 @@ export type AvatarAccessoryId = 'none' | 'cap' | 'glasses' | 'crown' | 'headphon
 export interface AvatarGeneratorPreset {
   id: AvatarBaseCharacterId;
   label: string;
-  ageGroup: 'Infantil' | 'Adolescente';
-  gender: 'Masculino' | 'Feminino';
+  category: AvatarCategory;
+  categoryLabel: string;
+  ageGroup: 'Bloco 3D' | 'Animal 3D' | 'Infantil' | 'Adolescente';
+  gender: 'Mascote' | 'Masculino' | 'Feminino';
   defaultColor: string;
 }
 
 export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
+  // BLOCOS SORRIDENTES 3D
+  {
+    id: 'cube_happy',
+    label: 'Cubo Feliz (+)',
+    category: 'BLOCOS',
+    categoryLabel: 'Bloco Sorridente 3D',
+    ageGroup: 'Bloco 3D',
+    gender: 'Mascote',
+    defaultColor: '#007AFF',
+  },
+  {
+    id: 'cube_star',
+    label: 'Bloco Estrela (★)',
+    category: 'BLOCOS',
+    categoryLabel: 'Bloco Sorridente 3D',
+    ageGroup: 'Bloco 3D',
+    gender: 'Mascote',
+    defaultColor: '#FFD600',
+  },
+  {
+    id: 'cube_genius',
+    label: 'Cubo Gênio (123)',
+    category: 'BLOCOS',
+    categoryLabel: 'Bloco Sorridente 3D',
+    ageGroup: 'Bloco 3D',
+    gender: 'Mascote',
+    defaultColor: '#22C55E',
+  },
+  {
+    id: 'robo_calc',
+    label: 'Bloco Robô (×÷)',
+    category: 'BLOCOS',
+    categoryLabel: 'Bloco Sorridente 3D',
+    ageGroup: 'Bloco 3D',
+    gender: 'Mascote',
+    defaultColor: '#A855F7',
+  },
+  // ANIMAIS 3D
+  {
+    id: 'fox_scientist',
+    label: 'Raposa Sabida',
+    category: 'ANIMAIS',
+    categoryLabel: 'Animal 3D',
+    ageGroup: 'Animal 3D',
+    gender: 'Mascote',
+    defaultColor: '#F97316',
+  },
+  {
+    id: 'owl_student',
+    label: 'Coruja Mestre',
+    category: 'ANIMAIS',
+    categoryLabel: 'Animal 3D',
+    ageGroup: 'Animal 3D',
+    gender: 'Mascote',
+    defaultColor: '#007AFF',
+  },
+  {
+    id: 'panda_genius',
+    label: 'Panda Gênio',
+    category: 'ANIMAIS',
+    categoryLabel: 'Animal 3D',
+    ageGroup: 'Animal 3D',
+    gender: 'Mascote',
+    defaultColor: '#22C55E',
+  },
+  {
+    id: 'cat_astro',
+    label: 'Gatinho Astro',
+    category: 'ANIMAIS',
+    categoryLabel: 'Animal 3D',
+    ageGroup: 'Animal 3D',
+    gender: 'Mascote',
+    defaultColor: '#EC4899',
+  },
+  // ESTUDANTES 3D
   {
     id: 'leo_infantil_m',
     label: 'Léo (Infantil M)',
+    category: 'ESTUDANTES',
+    categoryLabel: 'Estudante 3D',
     ageGroup: 'Infantil',
     gender: 'Masculino',
     defaultColor: '#F97316',
@@ -185,6 +268,8 @@ export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
   {
     id: 'bia_infantil_f',
     label: 'Bia (Infantil F)',
+    category: 'ESTUDANTES',
+    categoryLabel: 'Estudante 3D',
     ageGroup: 'Infantil',
     gender: 'Feminino',
     defaultColor: '#EC4899',
@@ -192,6 +277,8 @@ export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
   {
     id: 'kaua_infantil_m',
     label: 'Kauã (Infantil M)',
+    category: 'ESTUDANTES',
+    categoryLabel: 'Estudante 3D',
     ageGroup: 'Infantil',
     gender: 'Masculino',
     defaultColor: '#007AFF',
@@ -199,6 +286,8 @@ export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
   {
     id: 'sofia_infantil_f',
     label: 'Sofia (Infantil F)',
+    category: 'ESTUDANTES',
+    categoryLabel: 'Estudante 3D',
     ageGroup: 'Infantil',
     gender: 'Feminino',
     defaultColor: '#22C55E',
@@ -206,6 +295,8 @@ export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
   {
     id: 'lucas_teen_m',
     label: 'Lucas (Teen M)',
+    category: 'ESTUDANTES',
+    categoryLabel: 'Estudante 3D',
     ageGroup: 'Adolescente',
     gender: 'Masculino',
     defaultColor: '#0284C7',
@@ -213,6 +304,8 @@ export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
   {
     id: 'maya_teen_f',
     label: 'Maya (Teen F)',
+    category: 'ESTUDANTES',
+    categoryLabel: 'Estudante 3D',
     ageGroup: 'Adolescente',
     gender: 'Feminino',
     defaultColor: '#007AFF',
@@ -220,6 +313,8 @@ export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
   {
     id: 'gui_teen_m',
     label: 'Gui (Teen M)',
+    category: 'ESTUDANTES',
+    categoryLabel: 'Estudante 3D',
     ageGroup: 'Adolescente',
     gender: 'Masculino',
     defaultColor: '#EAB308',
@@ -227,6 +322,8 @@ export const AVATAR_BASE_CHARACTERS: AvatarGeneratorPreset[] = [
   {
     id: 'lara_teen_f',
     label: 'Lara (Teen F)',
+    category: 'ESTUDANTES',
+    categoryLabel: 'Estudante 3D',
     ageGroup: 'Adolescente',
     gender: 'Feminino',
     defaultColor: '#A855F7',
@@ -259,11 +356,43 @@ export interface PlayerAvatar {
 }
 
 export const PLAYER_AVATARS: PlayerAvatar[] = [
-  { id: 'leo_infantil_m|#F97316|none', label: 'Léo', color: '#F97316', accentBg: 'rgba(249, 115, 22, 0.2)' },
-  { id: 'bia_infantil_f|#EC4899|none', label: 'Bia', color: '#EC4899', accentBg: 'rgba(236, 72, 153, 0.2)' },
-  { id: 'lucas_teen_m|#007AFF|glasses', label: 'Lucas', color: '#007AFF', accentBg: 'rgba(0, 122, 255, 0.2)' },
-  { id: 'maya_teen_f|#22C55E|glasses', label: 'Maya', color: '#22C55E', accentBg: 'rgba(34, 197, 94, 0.2)' },
+  { id: 'cube_happy|#007AFF|none', label: 'Cubo Feliz', color: '#007AFF', accentBg: 'rgba(0, 122, 255, 0.2)' },
+  { id: 'fox_scientist|#F97316|none', label: 'Raposa Sabida', color: '#F97316', accentBg: 'rgba(249, 115, 22, 0.2)' },
+  { id: 'panda_genius|#22C55E|glasses', label: 'Panda Gênio', color: '#22C55E', accentBg: 'rgba(34, 197, 94, 0.2)' },
+  { id: 'cat_astro|#EC4899|crown', label: 'Gatinho Astro', color: '#EC4899', accentBg: 'rgba(236, 72, 153, 0.2)' },
 ];
+
+export function ensureUniquePlayerAvatar(
+  requestedAvatarId: string,
+  existingPlayers: { id: string; avatarId: string; isBot?: boolean }[],
+  currentPlayerId?: string
+): string {
+  const parts = (requestedAvatarId || '').split('|');
+  let charId = (parts[0] || 'cube_happy') as AvatarBaseCharacterId;
+  let colorHex = parts[1] || '#007AFF';
+  const accId = (parts[2] || 'none') as AvatarAccessoryId;
+
+  const others = existingPlayers.filter((p) => !p.isBot && p.id !== currentPlayerId);
+  const usedBaseChars = new Set(others.map((p) => (p.avatarId || '').split('|')[0]));
+  const usedColors = new Set(others.map((p) => (p.avatarId || '').split('|')[1]));
+
+  if (usedBaseChars.has(charId)) {
+    const freeChar = AVATAR_BASE_CHARACTERS.find((c) => !usedBaseChars.has(c.id));
+    if (freeChar) {
+      charId = freeChar.id;
+      colorHex = freeChar.defaultColor;
+    }
+  }
+
+  if (usedColors.has(colorHex)) {
+    const freeColor = AVATAR_3D_COLORS.find((c) => !usedColors.has(c.hex));
+    if (freeColor) {
+      colorHex = freeColor.hex;
+    }
+  }
+
+  return `${charId}|${colorHex}|${accId}`;
+}
 
 export type AchievementMedalId =
   | 'mestre_soma'

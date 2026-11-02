@@ -38,6 +38,14 @@ export function parseAvatarDescriptor(avatarId: string): {
 
 function normalizeLegacyCharacter(charId: string): AvatarBaseCharacterId {
   switch (charId) {
+    case 'cube_happy':
+    case 'cube_star':
+    case 'cube_genius':
+    case 'robo_calc':
+    case 'fox_scientist':
+    case 'owl_student':
+    case 'panda_genius':
+    case 'cat_astro':
     case 'leo_infantil_m':
     case 'bia_infantil_f':
     case 'kaua_infantil_m':
@@ -48,23 +56,15 @@ function normalizeLegacyCharacter(charId: string): AvatarBaseCharacterId {
     case 'lara_teen_f':
       return charId;
     case 'boy_blue':
-    case 'cube_happy':
       return 'leo_infantil_m';
     case 'girl_pink':
-    case 'cat_astro':
       return 'bia_infantil_f';
-    case 'fox_scientist':
     case 'fox':
-      return 'lucas_teen_m';
-    case 'owl_student':
-      return 'maya_teen_f';
-    case 'panda_genius':
+      return 'fox_scientist';
     case 'tiger':
-      return 'kaua_infantil_m';
-    case 'robo_calc':
-      return 'lara_teen_f';
+      return 'panda_genius';
     default:
-      return 'leo_infantil_m';
+      return 'cube_happy';
   }
 }
 
@@ -453,6 +453,328 @@ export const AvatarIcon: React.FC<AvatarIconProps> = ({ avatarId, className = 'w
         return null;
     }
   };
+
+  const isSmilingBlock =
+    character === 'cube_happy' ||
+    character === 'cube_star' ||
+    character === 'cube_genius' ||
+    character === 'robo_calc';
+
+  const isAnimal3D =
+    character === 'fox_scientist' ||
+    character === 'owl_student' ||
+    character === 'panda_genius' ||
+    character === 'cat_astro';
+
+  if (isSmilingBlock) {
+    const blockSymbol =
+      character === 'cube_star'
+        ? '★'
+        : character === 'cube_genius'
+        ? '123'
+        : character === 'robo_calc'
+        ? '×÷'
+        : '+';
+
+    return (
+      <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+        <defs>
+          <linearGradient id={`blockBg_${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0F172A" />
+            <stop offset="100%" stopColor="#1E293B" />
+          </linearGradient>
+          <clipPath id={`clipBlock_${uid}`}>
+            <rect x="3" y="3" width="58" height="58" rx="16" />
+          </clipPath>
+        </defs>
+
+        <rect
+          x="3"
+          y="3"
+          width="58"
+          height="58"
+          rx="16"
+          fill={`url(#blockBg_${uid})`}
+          stroke="#FFFFFF"
+          strokeWidth="3"
+        />
+        <circle cx="32" cy="34" r="24" fill={outfitColor} fillOpacity="0.25" />
+
+        <g clipPath={`url(#clipBlock_${uid})`}>
+          {/* Cute 3D Block Feet */}
+          <rect x="20" y="49" width="8" height="7" rx="3.5" fill="#0F172A" stroke="#FFFFFF" strokeWidth="1.5" />
+          <rect x="36" y="49" width="8" height="7" rx="3.5" fill="#0F172A" stroke="#FFFFFF" strokeWidth="1.5" />
+
+          {/* 3D Extruded Bottom Shadow of Cube */}
+          <rect
+            x="14"
+            y="18"
+            width="36"
+            height="34"
+            rx="10"
+            fill="rgba(0,0,0,0.45)"
+          />
+
+          {/* Main 3D Smiling Cube Body */}
+          <rect
+            x="14"
+            y="14"
+            width="36"
+            height="34"
+            rx="10"
+            fill={outfitColor}
+            stroke="#FFFFFF"
+            strokeWidth="2.5"
+          />
+
+          {/* 3D Top Gloss Highlight */}
+          <rect
+            x="17"
+            y="16.5"
+            width="30"
+            height="7"
+            rx="3.5"
+            fill="#FFFFFF"
+            fillOpacity="0.32"
+          />
+
+          {/* Robot Antenna for robo_calc */}
+          {character === 'robo_calc' && (
+            <g>
+              <line x1="32" y1="7" x2="32" y2="14" stroke="#FFD600" strokeWidth="2.5" strokeLinecap="round" />
+              <circle cx="32" cy="6.5" r="3" fill="#EF4444" stroke="#FFFFFF" strokeWidth="1.2" />
+            </g>
+          )}
+
+          {/* Top Math Symbol Badge on the 3D Cube Forehead */}
+          <rect
+            x="24"
+            y="16"
+            width="16"
+            height="7.5"
+            rx="3.5"
+            fill="rgba(0,0,0,0.28)"
+          />
+          <text
+            x="32"
+            y="21.5"
+            textAnchor="middle"
+            fill="#FFD600"
+            fontSize="6.5"
+            fontWeight="900"
+            fontFamily="Fredoka, sans-serif"
+          >
+            {blockSymbol}
+          </text>
+
+          {/* Big Glossy 3D Eyes */}
+          <circle cx="24.5" cy="29.5" r="4.2" fill="#0F172A" stroke="#FFFFFF" strokeWidth="1.2" />
+          <circle cx="39.5" cy="29.5" r="4.2" fill="#0F172A" stroke="#FFFFFF" strokeWidth="1.2" />
+          <circle cx="23.3" cy="28.2" r="1.4" fill="#FFFFFF" />
+          <circle cx="38.3" cy="28.2" r="1.4" fill="#FFFFFF" />
+
+          {/* Rosy 3D Cheeks */}
+          <ellipse cx="19.5" cy="34" rx="2.8" ry="1.6" fill="#F43F5E" fillOpacity="0.55" />
+          <ellipse cx="44.5" cy="34" rx="2.8" ry="1.6" fill="#F43F5E" fillOpacity="0.55" />
+
+          {/* Big Cheerful 3D Smile */}
+          {character === 'robo_calc' ? (
+            <rect
+              x="24"
+              y="35.5"
+              width="16"
+              height="6"
+              rx="3"
+              fill="#0F172A"
+              stroke="#FFFFFF"
+              strokeWidth="1.2"
+            />
+          ) : (
+            <path
+              d="M24.5 35C26.5 41 37.5 41 39.5 35Z"
+              fill="#0F172A"
+              stroke="#FFFFFF"
+              strokeWidth="1.4"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {/* Optional 3D Glasses & Accessories */}
+          {showGlasses && (
+            <g>
+              <circle cx="24.5" cy="29.5" r="5.6" fill="rgba(255,255,255,0.15)" stroke="#FFD600" strokeWidth="1.8" />
+              <circle cx="39.5" cy="29.5" r="5.6" fill="rgba(255,255,255,0.15)" stroke="#FFD600" strokeWidth="1.8" />
+              <line x1="30.1" y1="29.5" x2="33.9" y2="29.5" stroke="#FFD600" strokeWidth="1.8" />
+            </g>
+          )}
+          {renderAccessory()}
+        </g>
+      </svg>
+    );
+  }
+
+  if (isAnimal3D) {
+    const primaryFur =
+      character === 'fox_scientist'
+        ? '#F97316'
+        : character === 'owl_student'
+        ? '#0284C7'
+        : character === 'panda_genius'
+        ? '#F8FAFC'
+        : '#F472B6';
+
+    const innerFur =
+      character === 'fox_scientist'
+        ? '#FFEDD5'
+        : character === 'owl_student'
+        ? '#E0F2FE'
+        : character === 'panda_genius'
+        ? '#1E293B'
+        : '#FCE7F3';
+
+    return (
+      <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+        <defs>
+          <linearGradient id={`animalBg_${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#F8FAFC" />
+            <stop offset="100%" stopColor="#DBEAFE" />
+          </linearGradient>
+          <clipPath id={`clipAnimal_${uid}`}>
+            <rect x="3" y="3" width="58" height="58" rx="16" />
+          </clipPath>
+        </defs>
+
+        <rect
+          x="3"
+          y="3"
+          width="58"
+          height="58"
+          rx="16"
+          fill={`url(#animalBg_${uid})`}
+          stroke="#FFFFFF"
+          strokeWidth="3"
+        />
+        <circle cx="32" cy="34" r="23" fill={outfitColor} fillOpacity="0.22" />
+
+        <g clipPath={`url(#clipAnimal_${uid})`}>
+          {/* 3D Shirt / Shoulders in Chosen Player Color */}
+          <path
+            d="M12 60C13 47 21 44 32 44C43 44 51 47 52 60H12Z"
+            fill={outfitColor}
+            stroke="#FFFFFF"
+            strokeWidth="1.5"
+          />
+
+          {/* 3D Animal Ears */}
+          {character === 'panda_genius' ? (
+            <g>
+              <circle cx="19" cy="16" r="6.5" fill="#0F172A" />
+              <circle cx="45" cy="16" r="6.5" fill="#0F172A" />
+              <circle cx="19" cy="16" r="3.2" fill="#F43F5E" fillOpacity="0.6" />
+              <circle cx="45" cy="16" r="3.2" fill="#F43F5E" fillOpacity="0.6" />
+            </g>
+          ) : character === 'owl_student' ? (
+            <g>
+              <path d="M16 12L24 18L17 24Z" fill="#0369A1" />
+              <path d="M48 12L40 18L47 24Z" fill="#0369A1" />
+            </g>
+          ) : (
+            <g>
+              <path d="M16 24L18 9L28 18Z" fill={primaryFur} stroke="#FFFFFF" strokeWidth="1.2" strokeLinejoin="round" />
+              <path d="M48 24L46 9L36 18Z" fill={primaryFur} stroke="#FFFFFF" strokeWidth="1.2" strokeLinejoin="round" />
+              <path d="M18.5 21L19.5 12.5L25.5 18Z" fill={innerFur} />
+              <path d="M45.5 21L44.5 12.5L38.5 18Z" fill={innerFur} />
+            </g>
+          )}
+
+          {/* 3D Sculpted Animal Head */}
+          <rect
+            x="16.5"
+            y="15"
+            width="31"
+            height="29"
+            rx="14.5"
+            fill={primaryFur}
+            stroke="#FFFFFF"
+            strokeWidth="1.8"
+          />
+
+          {/* Species Facial Masks */}
+          {character === 'fox_scientist' && (
+            <path
+              d="M17 31C21 27 26 35 32 36C38 35 43 27 47 31C46 39 40 44 32 44C24 44 18 39 17 31Z"
+              fill="#FFF7ED"
+            />
+          )}
+          {character === 'owl_student' && (
+            <g>
+              <circle cx="25.5" cy="28" r="6.5" fill="#E0F2FE" />
+              <circle cx="38.5" cy="28" r="6.5" fill="#E0F2FE" />
+            </g>
+          )}
+          {character === 'panda_genius' && (
+            <g>
+              <ellipse cx="25" cy="28.5" rx="5.2" ry="4.4" transform="rotate(-12 25 28.5)" fill="#0F172A" />
+              <ellipse cx="39" cy="28.5" rx="5.2" ry="4.4" transform="rotate(12 39 28.5)" fill="#0F172A" />
+            </g>
+          )}
+
+          {/* Glossy 3D Eyes */}
+          <circle cx="25.5" cy="28.2" r="3" fill="#0F172A" />
+          <circle cx="38.5" cy="28.2" r="3" fill="#0F172A" />
+          <circle cx="24.5" cy="27.2" r="1.1" fill="#FFFFFF" />
+          <circle cx="37.5" cy="27.2" r="1.1" fill="#FFFFFF" />
+
+          {/* Cute 3D Nose / Beak & Smile */}
+          {character === 'owl_student' ? (
+            <path
+              d="M29 31L35 31L32 36.5Z"
+              fill="#FFD600"
+              stroke="#B45309"
+              strokeWidth="1.2"
+              strokeLinejoin="round"
+            />
+          ) : (
+            <g>
+              <ellipse
+                cx="32"
+                cy="32"
+                rx="2.8"
+                ry="2"
+                fill={character === 'cat_astro' ? '#EC4899' : '#0F172A'}
+              />
+              <path
+                d="M28 36C29.8 38.2 34.2 38.2 36 36"
+                stroke="#0F172A"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </g>
+          )}
+
+          {/* Cat Whiskers */}
+          {character === 'cat_astro' && (
+            <g stroke="#FFFFFF" strokeWidth="1.4" strokeLinecap="round">
+              <line x1="15" y1="31" x2="21" y2="32" />
+              <line x1="15" y1="34.5" x2="21" y2="34.5" />
+              <line x1="49" y1="31" x2="43" y2="32" />
+              <line x1="49" y1="34.5" x2="43" y2="34.5" />
+            </g>
+          )}
+
+          {/* Optional 3D Glasses & Top Accessories */}
+          {showGlasses && (
+            <g>
+              <circle cx="25.5" cy="28.2" r="5.4" fill="rgba(255,255,255,0.18)" stroke="#78350F" strokeWidth="1.8" />
+              <circle cx="38.5" cy="28.2" r="5.4" fill="rgba(255,255,255,0.18)" stroke="#78350F" strokeWidth="1.8" />
+              <line x1="30.9" y1="28.2" x2="33.1" y2="28.2" stroke="#78350F" strokeWidth="1.8" />
+            </g>
+          )}
+          {renderAccessory()}
+        </g>
+      </svg>
+    );
+  }
 
   return (
     <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
