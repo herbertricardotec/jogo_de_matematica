@@ -219,24 +219,29 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   const [parentalAnswer, setParentalAnswer] = useState<string>('');
   const [parentalUnlocked, setParentalUnlocked] = useState<boolean>(false);
 
-  // Fire TV Stick & Smart TV Auto-Fit Viewport Scaler + Fullscreen State
+  // Fire TV Stick (Amazon Silk), 1080p & 4K Auto-Fit Viewport Scaler + Fullscreen State
   const [tvScale, setTvScale] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.add('tv-mode-lock');
+    }
+
     const updateScaleAndFullscreen = () => {
       if (typeof window === 'undefined') return;
       window.scrollTo(0, 0);
       const vw = window.visualViewport?.width || window.innerWidth || 1280;
       const vh = window.visualViewport?.height || window.innerHeight || 720;
 
-      // Target 16:9 HD TV reference canvas (1280x695) so Fire TV Stick Silk Browser
-      // (which reports 960x540 or ~960x450 when the Silk URL bar is open) scales 100% into view!
+      // Reference 16:9 HD TV canvas (1280x700):
+      // - Scales down on Amazon Silk Browser (960x540 or ~960x450 with Silk URL bar visible)
+      // - Scales up proportionally on 1080p Full HD (1920x1080 -> 1.5x) and 4K UHD (3840x2160 -> 3.0x)
       const targetWidth = 1280;
-      const targetHeight = 695;
+      const targetHeight = 700;
       const scaleX = vw / targetWidth;
       const scaleY = vh / targetHeight;
-      const nextScale = Math.max(0.45, Math.min(1, scaleX, scaleY));
+      const nextScale = Math.max(0.42, Math.min(3.2, Math.min(scaleX, scaleY)));
       setTvScale(nextScale);
       setIsFullscreen(Boolean(document.fullscreenElement));
     };
@@ -248,13 +253,16 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
       window.visualViewport.addEventListener('resize', updateScaleAndFullscreen);
     }
     return () => {
+      if (typeof document !== 'undefined') {
+        document.documentElement.classList.remove('tv-mode-lock');
+      }
       window.removeEventListener('resize', updateScaleAndFullscreen);
       document.removeEventListener('fullscreenchange', updateScaleAndFullscreen);
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', updateScaleAndFullscreen);
       }
     };
-  }, [roomState.status]);
+  }, [roomState.status, showAdminPanel]);
 
   const handleToggleFullscreen = () => {
     if (typeof document === 'undefined') return;
@@ -485,7 +493,7 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-[#071936] text-[#F8FAFC] select-none">
+    <div className="tv-viewport-root text-[#F8FAFC] select-none">
       {/* 60fps Classroom & Floating 3D Math Symbols Canvas */}
       <StudioStageCanvas
         status={roomState.status}
@@ -494,22 +502,14 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
         isLightningRound={Boolean(question?.isLightningRound)}
       />
 
-      {/* AUTO-SCALING FIRE TV STICK & SMART TV VIEWPORT STAGE (Guarantees 100% Fit on 960x540, Silk Browser w/ URL bar, 720p & 1080p) */}
+      {/* AUTO-SCALING FIRE TV STICK (SILK BROWSER), 1080p & 4K VIEWPORT STAGE */}
       <div
         style={
-          tvScale < 0.999
-            ? {
-                width: `${(100 / tvScale).toFixed(3)}%`,
-                height: `${(100 / tvScale).toFixed(3)}%`,
-                transform: `scale(${tvScale.toFixed(4)})`,
-                transformOrigin: 'top left',
-              }
-            : {
-                width: '100%',
-                height: '100%',
-              }
+          {
+            '--tv-scale': tvScale.toFixed(4),
+          } as React.CSSProperties
         }
-        className="relative z-10 flex flex-col justify-between overflow-hidden px-3 py-1.5"
+        className="tv-scaled-stage tv-safe-padding relative z-10 flex flex-col justify-between overflow-hidden px-3 py-1.5"
       >
         {/* TOP BAR HUD + ALWAYS-VISIBLE RECONNECTION QR CODE WIDGET */}
         <header className="relative z-10 flex items-center justify-between gap-3 px-4 lg:px-6 py-2 rounded-2xl border-2 border-white/15 bg-[#0A192F]/95 shrink-0">
@@ -1358,48 +1358,125 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
             );
           })}
         </section>
-      </div>
 
-      {/* TELA ADMINISTRATIVA — CONTROLE DOS 4 JOGADORES + MODO PROFESSOR + RELATÓRIO PEDAGÓGICO */}
-      {showAdminPanel && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-          <div className="max-w-6xl w-full rounded-3xl bg-[#0F172A] border-4 border-[#FFD600] p-5 sm:p-6 space-y-5 shadow-2xl panel-3d my-auto max-h-[94vh] overflow-y-auto">
-            {/* Admin Header with moved PWA Install & Testar Celular na Tela buttons */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/15 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-[#A855F7] border-2 border-white flex items-center justify-center text-white shadow-lg shrink-0">
-                  <Settings className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="text-xs font-black uppercase text-[#FFD600]">
-                    MagnetSoftware · Painel de Controle &amp; Modo Professor
+        {/* TELA ADMINISTRATIVA COMPACTA PARA TV (DENTRO DO STAGE ESCALONADO PARA FIRE TV STICK / SILK / 1080p / 4K) */}
+        {showAdminPanel && (
+          <div className="absolute inset-0 z-50 bg-black/88 backdrop-blur-sm flex items-center justify-center p-2.5 overflow-hidden">
+            <div className="max-w-[1230px] w-full h-full max-h-[670px] rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] px-4 py-3 flex flex-col justify-between gap-2.5 shadow-2xl panel-3d overflow-hidden">
+              {/* Compact Single-Row Admin Header */}
+              <div className="flex items-center justify-between gap-2 border-b border-white/15 pb-2 shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-[#A855F7] border-2 border-white flex items-center justify-center text-white shadow-md shrink-0">
+                    <Settings className="w-5 h-5" />
                   </div>
-                  <h2 className="font-display font-black text-xl sm:text-2xl lg:text-3xl text-white">
-                    Tela Administrativa da Sala ({roomState.code})
-                  </h2>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-black uppercase text-[#FFD600] leading-tight truncate">
+                      MagnetSoftware · Painel de Controle &amp; Modo Professor
+                    </div>
+                    <h2 className="font-display font-black text-lg text-white leading-tight truncate">
+                      Tela Administrativa da Sala ({roomState.code})
+                    </h2>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <PWAInstallButton />
+
+                  <button
+                    type="button"
+                    data-tv-focusable="true"
+                    onClick={() => {
+                      setShowVirtualPhone((v) => !v);
+                      setShowAdminPanel(false);
+                    }}
+                    className={`tv-focusable cube-3d min-h-[36px] px-3 py-1 rounded-xl text-[11px] font-black flex items-center gap-1.5 border-2 border-white transition-colors whitespace-nowrap ${
+                      showVirtualPhone
+                        ? 'bg-[#FFD600] text-slate-950'
+                        : 'bg-[#007AFF] hover:bg-[#0284C7] text-white'
+                    }`}
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>
+                      {showVirtualPhone ? 'Fechar Celular Virtual' : 'Testar Celular na Tela'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-tv-focusable="true"
+                    onClick={() => {
+                      soundEngine.playTick();
+                      onAdminRotatePin();
+                    }}
+                    className="tv-focusable cube-3d min-h-[36px] px-3 py-1 rounded-xl bg-sky-700 hover:bg-sky-600 border-2 border-white text-[11px] font-black text-white flex items-center gap-1.5 whitespace-nowrap"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Novo PIN ({roomState.code})</span>
+                  </button>
+
+                  {roomState.players.length > 0 && (
+                    <button
+                      type="button"
+                      data-tv-focusable="true"
+                      onClick={() => {
+                        soundEngine.playTick();
+                        roomState.players.forEach((p) => onAdminKickPlayer(p.id));
+                      }}
+                      className="tv-focusable cube-3d min-h-[36px] px-3 py-1 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] border-2 border-white text-[11px] font-black text-white flex items-center gap-1.5 whitespace-nowrap"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Logoff Todos</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    data-tv-focusable="true"
+                    onClick={() => setShowAdminPanel(false)}
+                    className="tv-focusable cube-3d min-h-[36px] px-3.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 border-2 border-white/40 text-[11px] font-black text-white flex items-center gap-1 whitespace-nowrap"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Fechar</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Moved from main header: Instalar App (PWA) & Testar Celular na Tela */}
-                <PWAInstallButton />
+              {/* Compact Single-Row 3-Column Navigation Tabs */}
+              <div className="grid grid-cols-3 gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  data-tv-focusable="true"
+                  onClick={() => {
+                    soundEngine.playTick();
+                    setAdminTab('PLAYERS');
+                  }}
+                  className={`tv-focusable cube-3d min-h-[38px] px-3 py-1.5 rounded-xl font-display font-black text-xs flex items-center justify-center gap-2 border-2 transition-all whitespace-nowrap ${
+                    adminTab === 'PLAYERS'
+                      ? 'bg-[#FFD600] text-slate-950 border-white'
+                      : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
+                  }`}
+                >
+                  <Users className="w-4 h-4 shrink-0" />
+                  <span>Controle dos 4 Jogadores ({roomState.players.length}/4)</span>
+                </button>
 
                 <button
                   type="button"
                   data-tv-focusable="true"
                   onClick={() => {
-                    setShowVirtualPhone((v) => !v);
-                    setShowAdminPanel(false);
+                    soundEngine.playTick();
+                    setAdminTab('TEACHER_CREATOR');
                   }}
-                  className={`tv-focusable cube-3d min-h-[42px] px-3.5 py-2 rounded-2xl text-xs font-black flex items-center gap-1.5 border-2 border-white transition-colors ${
-                    showVirtualPhone
-                      ? 'bg-[#FFD600] text-slate-950'
-                      : 'bg-[#007AFF] hover:bg-[#0284C7] text-white'
+                  className={`tv-focusable cube-3d min-h-[38px] px-3 py-1.5 rounded-xl font-display font-black text-xs flex items-center justify-center gap-2 border-2 transition-all whitespace-nowrap ${
+                    adminTab === 'TEACHER_CREATOR'
+                      ? 'bg-[#22C55E] text-white border-white'
+                      : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
                   }`}
                 >
-                  <Smartphone className="w-4 h-4" />
+                  <BookOpen className="w-4 h-4 shrink-0" />
                   <span>
-                    {showVirtualPhone ? 'Fechar Celular Virtual' : 'Testar Celular na Tela'}
+                    Modo Professor · Partidas Personalizadas (
+                    {roomState.settings.customQuestions?.length || 0})
                   </span>
                 </button>
 
@@ -1408,847 +1485,776 @@ export const FireTvStageView: React.FC<FireTvStageViewProps> = ({
                   data-tv-focusable="true"
                   onClick={() => {
                     soundEngine.playTick();
-                    onAdminRotatePin();
+                    setAdminTab('PEDAGOGICAL_REPORT');
                   }}
-                  className="tv-focusable cube-3d min-h-[42px] px-3.5 py-2 rounded-2xl bg-sky-700 hover:bg-sky-600 border-2 border-white text-xs font-black text-white flex items-center gap-1.5"
+                  className={`tv-focusable cube-3d min-h-[38px] px-3 py-1.5 rounded-xl font-display font-black text-xs flex items-center justify-center gap-2 border-2 transition-all whitespace-nowrap ${
+                    adminTab === 'PEDAGOGICAL_REPORT'
+                      ? 'bg-[#A855F7] text-white border-white'
+                      : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
+                  }`}
                 >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>Novo PIN / QR ({roomState.code})</span>
-                </button>
-
-                {roomState.players.length > 0 && (
-                  <button
-                    type="button"
-                    data-tv-focusable="true"
-                    onClick={() => {
-                      soundEngine.playTick();
-                      roomState.players.forEach((p) => onAdminKickPlayer(p.id));
-                    }}
-                    className="tv-focusable cube-3d min-h-[42px] px-3.5 py-2 rounded-2xl bg-[#EF4444] hover:bg-[#DC2626] border-2 border-white text-xs font-black text-white flex items-center gap-1.5"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Logoff de Todos</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  data-tv-focusable="true"
-                  onClick={() => setShowAdminPanel(false)}
-                  className="tv-focusable cube-3d min-h-[42px] px-4 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 border-2 border-white/40 text-xs font-black text-white flex items-center gap-1.5"
-                >
-                  <X className="w-4 h-4" />
-                  <span>Fechar</span>
+                  <BarChart3 className="w-4 h-4 shrink-0" />
+                  <span>Relatório Pedagógico Pós-Jogo (+, −, ×, ÷)</span>
                 </button>
               </div>
-            </div>
 
-            {/* Navigation Tabs inside Admin Panel */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                data-tv-focusable="true"
-                onClick={() => {
-                  soundEngine.playTick();
-                  setAdminTab('PLAYERS');
-                }}
-                className={`tv-focusable cube-3d min-h-[46px] px-5 py-2.5 rounded-2xl font-display font-black text-xs sm:text-sm flex items-center gap-2 border-2 transition-all ${
-                  adminTab === 'PLAYERS'
-                    ? 'bg-[#FFD600] text-slate-950 border-white'
-                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                <span>Controle dos 4 Jogadores ({roomState.players.length}/4)</span>
-              </button>
+              {/* ABA 1: CONTROLE DOS 4 JOGADORES (Sempre 4 Colunas Lado a Lado na TV!) */}
+              {adminTab === 'PLAYERS' && (
+                <div className="flex-1 grid grid-cols-4 gap-3 items-stretch min-h-0">
+                  {[0, 1, 2, 3].map((slotIdx) => {
+                    const player = roomState.players.find((p) => p.slotIndex === slotIdx);
+                    const slotColors = ['#007AFF', '#FFD600', '#EF4444', '#22C55E'];
+                    const badgeHex = slotColors[slotIdx];
 
-              <button
-                type="button"
-                data-tv-focusable="true"
-                onClick={() => {
-                  soundEngine.playTick();
-                  setAdminTab('TEACHER_CREATOR');
-                }}
-                className={`tv-focusable cube-3d min-h-[46px] px-5 py-2.5 rounded-2xl font-display font-black text-xs sm:text-sm flex items-center gap-2 border-2 transition-all ${
-                  adminTab === 'TEACHER_CREATOR'
-                    ? 'bg-[#22C55E] text-white border-white'
-                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
-                }`}
-              >
-                <BookOpen className="w-4 h-4" />
-                <span>
-                  Modo Professor · Partidas Personalizadas (
-                  {roomState.settings.customQuestions?.length || 0})
-                </span>
-              </button>
+                    if (!player) {
+                      // JOGADOR NÃO LOGADO: Mostra QR Code e Código PIN da vaga!
+                      return (
+                        <div
+                          key={slotIdx}
+                          className="rounded-2xl bg-[#071936] border-2 border-dashed border-sky-400/50 p-3 flex flex-col items-center justify-between text-center panel-3d"
+                        >
+                          <div className="w-full flex items-center justify-between border-b border-white/10 pb-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <NumberCube3D number={slotIdx + 1} colorHex={badgeHex} size="sm" />
+                              <span className="font-display font-black text-sm text-white">
+                                Jogador {slotIdx + 1}
+                              </span>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400 text-[10px] font-black text-[#FFD600]">
+                              Livre
+                            </span>
+                          </div>
 
-              <button
-                type="button"
-                data-tv-focusable="true"
-                onClick={() => {
-                  soundEngine.playTick();
-                  setAdminTab('PEDAGOGICAL_REPORT');
-                }}
-                className={`tv-focusable cube-3d min-h-[46px] px-5 py-2.5 rounded-2xl font-display font-black text-xs sm:text-sm flex items-center gap-2 border-2 transition-all ${
-                  adminTab === 'PEDAGOGICAL_REPORT'
-                    ? 'bg-[#A855F7] text-white border-white'
-                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span>Relatório Pedagógico Pós-Jogo (+, −, ×, ÷)</span>
-              </button>
-            </div>
+                          {qrDataUrl && (
+                            <div className="p-2 rounded-2xl bg-white shadow-md my-1">
+                              <img
+                                src={qrDataUrl}
+                                alt={`QR Code Jogador ${slotIdx + 1} - PIN ${roomState.code}`}
+                                referrerPolicy="no-referrer"
+                                className="w-28 h-28 object-contain"
+                              />
+                            </div>
+                          )}
 
-            {/* ABA 1: CONTROLE DOS 4 JOGADORES */}
-            {adminTab === 'PLAYERS' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[0, 1, 2, 3].map((slotIdx) => {
-                  const player = roomState.players.find((p) => p.slotIndex === slotIdx);
-                  const slotColors = ['#007AFF', '#FFD600', '#EF4444', '#22C55E'];
-                  const badgeHex = slotColors[slotIdx];
+                          <div className="w-full rounded-xl bg-[#0F172A] border-2 border-[#FFD600] py-1.5 px-2.5">
+                            <div className="text-[10px] font-extrabold text-sky-300 uppercase">
+                              Código PIN para Conectar:
+                            </div>
+                            <div className="font-mono font-black text-2xl text-[#FFD600] tracking-widest tabular-nums leading-tight">
+                              {roomState.code}
+                            </div>
+                          </div>
 
-                  if (!player) {
-                    // JOGADOR NÃO LOGADO: Mostra QR Code e Código PIN da vaga!
+                          <p className="text-[10px] font-semibold text-sky-200 leading-tight">
+                            Escaneie o QR Code com o celular para assumir o Controle #{slotIdx + 1}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    // JOGADOR LOGADO: Mostra Avatar 3D, Nome, Pontuação e Botão de Logoff (Desconectar)!
                     return (
                       <div
-                        key={slotIdx}
-                        className="rounded-3xl bg-[#071936] border-3 border-dashed border-sky-400/50 p-4 flex flex-col items-center justify-between text-center space-y-3 panel-3d"
+                        key={player.id}
+                        className="rounded-2xl bg-gradient-to-b from-[#0F172A] to-[#1E293B] border-2 border-[#22C55E] p-3 flex flex-col justify-between text-center panel-3d"
                       >
-                        <div className="w-full flex items-center justify-between border-b border-white/10 pb-2">
-                          <div className="flex items-center gap-2">
+                        <div className="w-full flex items-center justify-between border-b border-white/10 pb-1.5">
+                          <div className="flex items-center gap-1.5">
                             <NumberCube3D number={slotIdx + 1} colorHex={badgeHex} size="sm" />
-                            <span className="font-display font-black text-base text-white">
+                            <span className="font-display font-black text-sm text-white">
                               Jogador {slotIdx + 1}
                             </span>
                           </div>
-                          <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400 text-[11px] font-black text-[#FFD600]">
-                            Aguardando Login
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400 text-[10px] font-black text-emerald-300">
+                            ● Online
                           </span>
                         </div>
 
-                        {qrDataUrl && (
-                          <div className="p-2.5 rounded-2xl bg-white shadow-lg">
-                            <img
-                              src={qrDataUrl}
-                              alt={`QR Code Jogador ${slotIdx + 1} - PIN ${roomState.code}`}
-                              referrerPolicy="no-referrer"
-                              className="w-32 h-32 sm:w-36 sm:h-36 object-contain"
-                            />
+                        {/* Player 3D Avatar & Name */}
+                        <div className="flex flex-col items-center space-y-1">
+                          <div className="p-1.5 rounded-2xl bg-slate-900 border-2 border-[#FFD600] shadow-md">
+                            <AvatarIcon avatarId={player.avatarId} className="w-16 h-16" />
                           </div>
-                        )}
-
-                        <div className="w-full rounded-2xl bg-[#0F172A] border-2 border-[#FFD600] py-2 px-3">
-                          <div className="text-[10px] font-extrabold text-sky-300 uppercase">
-                            Código PIN para Conectar:
-                          </div>
-                          <div className="font-mono font-black text-3xl text-[#FFD600] tracking-widest tabular-nums">
-                            {roomState.code}
+                          <div className="flex items-center gap-1">
+                            <h3 className="font-display font-black text-base text-white truncate max-w-[160px]">
+                              {player.name}
+                            </h3>
+                            {player.isHost && (
+                              <Crown className="w-4 h-4 text-[#FFD600]" title="Líder da Sala" />
+                            )}
                           </div>
                         </div>
 
-                        <p className="text-[11px] font-semibold text-sky-200 leading-snug">
-                          Escaneie o QR Code com o celular para assumir o Controle #{slotIdx + 1}
-                        </p>
+                        {/* Player Score & Stats */}
+                        <div className="grid grid-cols-2 gap-1.5 w-full bg-slate-950/80 p-2 rounded-xl border border-white/15 tabular-nums">
+                          <div>
+                            <div className="text-[9px] font-bold text-sky-300 uppercase">
+                              Pontuação
+                            </div>
+                            <div className="font-mono font-black text-base text-[#22C55E]">
+                              {player.score} pts
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] font-bold text-sky-300 uppercase">
+                              Estrelas / Acertos
+                            </div>
+                            <div className="font-mono font-black text-sm text-[#FFD600]">
+                              ⭐ {player.stars} · {player.correctCount}✓
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Logoff / Disconnect Player Button */}
+                        <button
+                          type="button"
+                          data-tv-focusable="true"
+                          onClick={() => {
+                            soundEngine.playTick();
+                            onAdminKickPlayer(player.id);
+                          }}
+                          className="tv-focusable cube-3d w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] border-2 border-white text-white font-display font-black text-xs flex items-center justify-center gap-1.5 transition-transform active:scale-95"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Fazer Logoff (Desconectar)</span>
+                        </button>
                       </div>
                     );
-                  }
+                  })}
+                </div>
+              )}
 
-                  // JOGADOR LOGADO: Mostra Avatar 3D, Nome, Pontuação e Botão de Logoff (Desconectar)!
-                  return (
-                    <div
-                      key={player.id}
-                      className="rounded-3xl bg-gradient-to-b from-[#0F172A] to-[#1E293B] border-3 border-[#22C55E] p-4 flex flex-col justify-between text-center space-y-3 panel-3d"
-                    >
-                      <div className="w-full flex items-center justify-between border-b border-white/10 pb-2">
-                        <div className="flex items-center gap-2">
-                          <NumberCube3D number={slotIdx + 1} colorHex={badgeHex} size="sm" />
-                          <span className="font-display font-black text-base text-white">
-                            Jogador {slotIdx + 1}
-                          </span>
+              {/* ABA 2: MODO PROFESSOR — CRIADOR DE PARTIDAS PERSONALIZADAS (Lado a Lado 12 Colunas na TV) */}
+              {adminTab === 'TEACHER_CREATOR' && (
+                <div className="flex-1 grid grid-cols-12 gap-3.5 items-stretch min-h-0">
+                  {/* Left Column: Presets + Add Specific Equation Form */}
+                  <div className="col-span-5 rounded-2xl bg-[#071936] border-2 border-white/20 p-3.5 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-xs font-black uppercase text-[#22C55E]">
+                          1. Pacotes Prontos de Treino (1 Clique)
                         </div>
-                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400 text-[11px] font-black text-emerald-300">
-                          ● Online
-                        </span>
+                        <p className="text-[11px] font-semibold text-sky-200">
+                          Escolha uma trilha focada (ex: Tabuada do 7 e 8) ou cadastre contas abaixo:
+                        </p>
                       </div>
 
-                      {/* Player 3D Avatar & Name */}
-                      <div className="flex flex-col items-center space-y-1.5 py-1">
-                        <div className="p-1.5 rounded-2xl bg-slate-900 border-2 border-[#FFD600] shadow-md">
-                          <AvatarIcon avatarId={player.avatarId} className="w-20 h-20" />
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          {
+                            label: 'Tabuada do 7 e 8',
+                            color: '#A855F7',
+                            items: [
+                              { termA: 7, operator: '×' as MathOperator, termB: 6, correctAnswer: 42 },
+                              { termA: 7, operator: '×' as MathOperator, termB: 7, correctAnswer: 49 },
+                              { termA: 7, operator: '×' as MathOperator, termB: 8, correctAnswer: 56 },
+                              { termA: 7, operator: '×' as MathOperator, termB: 9, correctAnswer: 63 },
+                              { termA: 8, operator: '×' as MathOperator, termB: 6, correctAnswer: 48 },
+                              { termA: 8, operator: '×' as MathOperator, termB: 7, correctAnswer: 56 },
+                              { termA: 8, operator: '×' as MathOperator, termB: 8, correctAnswer: 64 },
+                              { termA: 8, operator: '×' as MathOperator, termB: 9, correctAnswer: 72 },
+                            ],
+                          },
+                          {
+                            label: 'Tabuada do 2, 3 e 4',
+                            color: '#007AFF',
+                            items: [
+                              { termA: 2, operator: '×' as MathOperator, termB: 6, correctAnswer: 12 },
+                              { termA: 2, operator: '×' as MathOperator, termB: 8, correctAnswer: 16 },
+                              { termA: 3, operator: '×' as MathOperator, termB: 5, correctAnswer: 15 },
+                              { termA: 3, operator: '×' as MathOperator, termB: 7, correctAnswer: 21 },
+                              { termA: 4, operator: '×' as MathOperator, termB: 6, correctAnswer: 24 },
+                              { termA: 4, operator: '×' as MathOperator, termB: 8, correctAnswer: 32 },
+                            ],
+                          },
+                          {
+                            label: 'Tabuada do 5, 6 e 9',
+                            color: '#F97316',
+                            items: [
+                              { termA: 5, operator: '×' as MathOperator, termB: 7, correctAnswer: 35 },
+                              { termA: 6, operator: '×' as MathOperator, termB: 6, correctAnswer: 36 },
+                              { termA: 6, operator: '×' as MathOperator, termB: 8, correctAnswer: 48 },
+                              { termA: 9, operator: '×' as MathOperator, termB: 6, correctAnswer: 54 },
+                              { termA: 9, operator: '×' as MathOperator, termB: 7, correctAnswer: 63 },
+                              { termA: 9, operator: '×' as MathOperator, termB: 9, correctAnswer: 81 },
+                            ],
+                          },
+                          {
+                            label: 'Divisão Exata (÷)',
+                            color: '#EC4899',
+                            items: [
+                              { termA: 12, operator: '÷' as MathOperator, termB: 3, correctAnswer: 4 },
+                              { termA: 20, operator: '÷' as MathOperator, termB: 4, correctAnswer: 5 },
+                              { termA: 36, operator: '÷' as MathOperator, termB: 6, correctAnswer: 6 },
+                              { termA: 42, operator: '÷' as MathOperator, termB: 7, correctAnswer: 6 },
+                              { termA: 56, operator: '÷' as MathOperator, termB: 8, correctAnswer: 7 },
+                              { termA: 63, operator: '÷' as MathOperator, termB: 9, correctAnswer: 7 },
+                            ],
+                          },
+                        ].map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            data-tv-focusable="true"
+                            onClick={() => {
+                              soundEngine.playTick();
+                              const generated: CustomEquationItem[] = preset.items.map((it, idx) => ({
+                                id: `preset_${Date.now()}_${idx}`,
+                                ...it,
+                              }));
+                              onAdminSetCustomQuestions(generated, true);
+                              setTeacherError(null);
+                            }}
+                            style={{ backgroundColor: preset.color }}
+                            className="tv-focusable cube-3d px-3 py-2 rounded-xl border-2 border-white text-white font-display font-black text-xs text-left flex items-center justify-between"
+                          >
+                            <span>{preset.label}</span>
+                            <span className="px-1.5 py-0.5 rounded-lg bg-black/30 text-[10px]">
+                              {preset.items.length}x
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Manual Custom Equation Input */}
+                    <div className="pt-2.5 border-t border-white/15 space-y-2">
+                      <div className="text-xs font-black uppercase text-[#FFD600]">
+                        2. Cadastrar Conta Específica Manualmente
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          max={200}
+                          value={termAInput}
+                          onChange={(e) => setTermAInput(e.target.value)}
+                          className="w-16 h-10 rounded-xl bg-slate-900 border-2 border-sky-400 text-center font-mono text-lg font-black text-white"
+                          aria-label="Primeiro número"
+                        />
+
+                        <div className="flex gap-1">
+                          {(['+', '-', '×', '÷'] as MathOperator[]).map((op) => (
+                            <button
+                              key={op}
+                              type="button"
+                              data-tv-focusable="true"
+                              onClick={() => setOperatorInput(op)}
+                              className={`tv-focusable w-10 h-10 rounded-xl font-mono font-black text-lg border-2 ${
+                                operatorInput === op
+                                  ? 'bg-[#FFD600] text-slate-950 border-white'
+                                  : 'bg-slate-900 text-white border-slate-700'
+                              }`}
+                            >
+                              {op}
+                            </button>
+                          ))}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-display font-black text-xl text-white">
-                            {player.name}
-                          </h3>
-                          {player.isHost && (
-                            <Crown className="w-4 h-4 text-[#FFD600]" title="Líder da Sala" />
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={200}
+                          value={termBInput}
+                          onChange={(e) => setTermBInput(e.target.value)}
+                          className="w-16 h-10 rounded-xl bg-slate-900 border-2 border-sky-400 text-center font-mono text-lg font-black text-white"
+                          aria-label="Segundo número"
+                        />
+                      </div>
+
+                      {teacherError && (
+                        <div className="text-[11px] font-bold text-rose-400 bg-rose-950/60 border border-rose-500/40 rounded-xl px-2.5 py-1">
+                          {teacherError}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        data-tv-focusable="true"
+                        onClick={() => {
+                          const a = Math.max(1, parseInt(termAInput, 10) || 1);
+                          const b = Math.max(1, parseInt(termBInput, 10) || 1);
+                          let ans = 0;
+
+                          if (operatorInput === '+') {
+                            ans = a + b;
+                          } else if (operatorInput === '-') {
+                            if (a <= b) {
+                              setTeacherError(
+                                'Na subtração, o 1º número deve ser maior que o 2º para resultado positivo.'
+                              );
+                              return;
+                            }
+                            ans = a - b;
+                          } else if (operatorInput === '×') {
+                            ans = a * b;
+                          } else {
+                            if (b === 0 || a % b !== 0) {
+                              setTeacherError(
+                                `A divisão ${a} ÷ ${b} não é exata. Use um múltiplo de ${b} (ex: ${
+                                  b * 2
+                                }, ${b * 3}).`
+                              );
+                              return;
+                            }
+                            ans = a / b;
+                          }
+
+                          setTeacherError(null);
+                          soundEngine.playTick();
+                          const currentList = roomState.settings.customQuestions || [];
+                          const nextList: CustomEquationItem[] = [
+                            ...currentList,
+                            {
+                              id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                              termA: a,
+                              operator: operatorInput,
+                              termB: b,
+                              correctAnswer: ans,
+                            },
+                          ];
+                          onAdminSetCustomQuestions(nextList, true);
+                        }}
+                        className="tv-focusable cube-3d w-full min-h-[40px] px-4 py-1.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white font-display font-black text-xs flex items-center justify-center gap-1.5"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Adicionar Conta à Lista da Partida</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Active Custom Questions Queue & Launch Button */}
+                  <div className="col-span-7 rounded-2xl bg-[#071936] border-2 border-white/20 p-3.5 flex flex-col justify-between min-h-0">
+                    <div className="space-y-2.5 flex-1 flex flex-col min-h-0">
+                      <div className="flex items-center justify-between gap-2 border-b border-white/15 pb-2 shrink-0">
+                        <div>
+                          <div className="text-xs font-black uppercase text-[#FFD600]">
+                            Contas Cadastradas para a Próxima Partida (
+                            {roomState.settings.customQuestions?.length || 0})
+                          </div>
+                          <p className="text-[11px] text-sky-200 font-semibold">
+                            Quando ativo, a partida exibirá exatamente estas contas em sequência.
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {(roomState.settings.customQuestions?.length || 0) > 0 && (
+                            <>
+                              <button
+                                type="button"
+                                data-tv-focusable="true"
+                                onClick={() => {
+                                  soundEngine.playTick();
+                                  onAdminSetCustomQuestions(
+                                    roomState.settings.customQuestions || [],
+                                    !roomState.settings.useCustomQuestions
+                                  );
+                                }}
+                                className={`tv-focusable px-3 py-1 rounded-xl text-[11px] font-black border-2 ${
+                                  roomState.settings.useCustomQuestions
+                                    ? 'bg-[#22C55E] text-white border-white'
+                                    : 'bg-slate-800 text-slate-300 border-slate-600'
+                                }`}
+                              >
+                                {roomState.settings.useCustomQuestions
+                                  ? '✓ Modo Professor ATIVO'
+                                  : 'Modo Professor Inativo'}
+                              </button>
+
+                              <button
+                                type="button"
+                                data-tv-focusable="true"
+                                onClick={() => {
+                                  soundEngine.playTick();
+                                  onAdminSetCustomQuestions([], false);
+                                }}
+                                className="tv-focusable px-2.5 py-1 rounded-xl bg-rose-600/90 hover:bg-rose-500 text-white text-[11px] font-black flex items-center gap-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Limpar</span>
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>
 
-                      {/* Player Score & Stats */}
-                      <div className="grid grid-cols-2 gap-2 w-full bg-slate-950/80 p-2.5 rounded-2xl border border-white/15 tabular-nums">
-                        <div>
-                          <div className="text-[10px] font-bold text-sky-300 uppercase">
-                            Pontuação
+                      {(roomState.settings.customQuestions?.length || 0) === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center space-y-1.5 rounded-2xl bg-slate-900/70 border border-dashed border-white/20 p-4">
+                          <BookOpen className="w-7 h-7 text-sky-400" />
+                          <div className="font-display font-black text-sm text-white">
+                            Nenhuma conta personalizada cadastrada
                           </div>
-                          <div className="font-mono font-black text-xl text-[#22C55E]">
-                            {player.score} pts
-                          </div>
+                          <p className="text-xs text-sky-200 max-w-md">
+                            Clique em um pacote ao lado (ex: <strong>Tabuada do 7 e 8</strong>) ou
+                            adicione contas específicas para criar sua aula gamificada!
+                          </p>
                         </div>
-                        <div>
-                          <div className="text-[10px] font-bold text-sky-300 uppercase">
-                            Estrelas / Acertos
-                          </div>
-                          <div className="font-mono font-black text-base text-[#FFD600]">
-                            ⭐ {player.stars} · {player.correctCount}✓
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Logoff / Disconnect Player Button */}
-                      <button
-                        type="button"
-                        data-tv-focusable="true"
-                        onClick={() => {
-                          soundEngine.playTick();
-                          onAdminKickPlayer(player.id);
-                        }}
-                        className="tv-focusable cube-3d w-full min-h-[48px] px-4 py-2.5 rounded-2xl bg-[#EF4444] hover:bg-[#DC2626] border-2 border-white text-white font-display font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Fazer Logoff (Desconectar)</span>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* ABA 2: MODO PROFESSOR — CRIADOR DE PARTIDAS PERSONALIZADAS */}
-            {adminTab === 'TEACHER_CREATOR' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* Left Column: Presets + Add Specific Equation Form */}
-                <div className="lg:col-span-5 rounded-3xl bg-[#071936] border-2 border-white/20 p-5 space-y-4">
-                  <div>
-                    <div className="text-xs font-black uppercase text-[#22C55E]">
-                      1. Pacotes Prontos de Treino (1 Clique)
-                    </div>
-                    <p className="text-xs font-semibold text-sky-200">
-                      Escolha uma trilha focada (ex: Tabuada do 7 e 8) ou cadastre contas abaixo:
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {[
-                      {
-                        label: 'Tabuada do 7 e 8',
-                        color: '#A855F7',
-                        items: [
-                          { termA: 7, operator: '×' as MathOperator, termB: 6, correctAnswer: 42 },
-                          { termA: 7, operator: '×' as MathOperator, termB: 7, correctAnswer: 49 },
-                          { termA: 7, operator: '×' as MathOperator, termB: 8, correctAnswer: 56 },
-                          { termA: 7, operator: '×' as MathOperator, termB: 9, correctAnswer: 63 },
-                          { termA: 8, operator: '×' as MathOperator, termB: 6, correctAnswer: 48 },
-                          { termA: 8, operator: '×' as MathOperator, termB: 7, correctAnswer: 56 },
-                          { termA: 8, operator: '×' as MathOperator, termB: 8, correctAnswer: 64 },
-                          { termA: 8, operator: '×' as MathOperator, termB: 9, correctAnswer: 72 },
-                        ],
-                      },
-                      {
-                        label: 'Tabuada do 2, 3 e 4',
-                        color: '#007AFF',
-                        items: [
-                          { termA: 2, operator: '×' as MathOperator, termB: 6, correctAnswer: 12 },
-                          { termA: 2, operator: '×' as MathOperator, termB: 8, correctAnswer: 16 },
-                          { termA: 3, operator: '×' as MathOperator, termB: 5, correctAnswer: 15 },
-                          { termA: 3, operator: '×' as MathOperator, termB: 7, correctAnswer: 21 },
-                          { termA: 4, operator: '×' as MathOperator, termB: 6, correctAnswer: 24 },
-                          { termA: 4, operator: '×' as MathOperator, termB: 8, correctAnswer: 32 },
-                        ],
-                      },
-                      {
-                        label: 'Tabuada do 5, 6 e 9',
-                        color: '#F97316',
-                        items: [
-                          { termA: 5, operator: '×' as MathOperator, termB: 7, correctAnswer: 35 },
-                          { termA: 6, operator: '×' as MathOperator, termB: 6, correctAnswer: 36 },
-                          { termA: 6, operator: '×' as MathOperator, termB: 8, correctAnswer: 48 },
-                          { termA: 9, operator: '×' as MathOperator, termB: 6, correctAnswer: 54 },
-                          { termA: 9, operator: '×' as MathOperator, termB: 7, correctAnswer: 63 },
-                          { termA: 9, operator: '×' as MathOperator, termB: 9, correctAnswer: 81 },
-                        ],
-                      },
-                      {
-                        label: 'Divisão Exata (÷)',
-                        color: '#EC4899',
-                        items: [
-                          { termA: 12, operator: '÷' as MathOperator, termB: 3, correctAnswer: 4 },
-                          { termA: 20, operator: '÷' as MathOperator, termB: 4, correctAnswer: 5 },
-                          { termA: 36, operator: '÷' as MathOperator, termB: 6, correctAnswer: 6 },
-                          { termA: 42, operator: '÷' as MathOperator, termB: 7, correctAnswer: 6 },
-                          { termA: 56, operator: '÷' as MathOperator, termB: 8, correctAnswer: 7 },
-                          { termA: 63, operator: '÷' as MathOperator, termB: 9, correctAnswer: 7 },
-                        ],
-                      },
-                    ].map((preset) => (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        data-tv-focusable="true"
-                        onClick={() => {
-                          soundEngine.playTick();
-                          const generated: CustomEquationItem[] = preset.items.map((it, idx) => ({
-                            id: `preset_${Date.now()}_${idx}`,
-                            ...it,
-                          }));
-                          onAdminSetCustomQuestions(generated, true);
-                          setTeacherError(null);
-                        }}
-                        style={{ backgroundColor: preset.color }}
-                        className="tv-focusable cube-3d px-3 py-2.5 rounded-2xl border-2 border-white text-white font-display font-black text-xs text-left flex items-center justify-between"
-                      >
-                        <span>{preset.label}</span>
-                        <span className="px-2 py-0.5 rounded-lg bg-black/30 text-[10px]">
-                          {preset.items.length}x
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Manual Custom Equation Input */}
-                  <div className="pt-3 border-t border-white/15 space-y-3">
-                    <div className="text-xs font-black uppercase text-[#FFD600]">
-                      2. Cadastrar Conta Específica Manualmente
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={1}
-                        max={200}
-                        value={termAInput}
-                        onChange={(e) => setTermAInput(e.target.value)}
-                        className="w-20 h-12 rounded-xl bg-slate-900 border-2 border-sky-400 text-center font-mono text-xl font-black text-white"
-                        aria-label="Primeiro número"
-                      />
-
-                      <div className="flex gap-1">
-                        {(['+', '-', '×', '÷'] as MathOperator[]).map((op) => (
-                          <button
-                            key={op}
-                            type="button"
-                            data-tv-focusable="true"
-                            onClick={() => setOperatorInput(op)}
-                            className={`tv-focusable w-11 h-12 rounded-xl font-mono font-black text-xl border-2 ${
-                              operatorInput === op
-                                ? 'bg-[#FFD600] text-slate-950 border-white'
-                                : 'bg-slate-900 text-white border-slate-700'
-                            }`}
-                          >
-                            {op}
-                          </button>
-                        ))}
-                      </div>
-
-                      <input
-                        type="number"
-                        min={1}
-                        max={200}
-                        value={termBInput}
-                        onChange={(e) => setTermBInput(e.target.value)}
-                        className="w-20 h-12 rounded-xl bg-slate-900 border-2 border-sky-400 text-center font-mono text-xl font-black text-white"
-                        aria-label="Segundo número"
-                      />
-                    </div>
-
-                    {teacherError && (
-                      <div className="text-xs font-bold text-rose-400 bg-rose-950/60 border border-rose-500/40 rounded-xl px-3 py-1.5">
-                        {teacherError}
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      data-tv-focusable="true"
-                      onClick={() => {
-                        const a = Math.max(1, parseInt(termAInput, 10) || 1);
-                        const b = Math.max(1, parseInt(termBInput, 10) || 1);
-                        let ans = 0;
-
-                        if (operatorInput === '+') {
-                          ans = a + b;
-                        } else if (operatorInput === '-') {
-                          if (a <= b) {
-                            setTeacherError(
-                              'Na subtração, o 1º número deve ser maior que o 2º para resultado positivo.'
-                            );
-                            return;
-                          }
-                          ans = a - b;
-                        } else if (operatorInput === '×') {
-                          ans = a * b;
-                        } else {
-                          if (b === 0 || a % b !== 0) {
-                            setTeacherError(
-                              `A divisão ${a} ÷ ${b} não é exata. Use um múltiplo de ${b} (ex: ${
-                                b * 2
-                              }, ${b * 3}, ${b * 4}).`
-                            );
-                            return;
-                          }
-                          ans = a / b;
-                        }
-
-                        setTeacherError(null);
-                        soundEngine.playTick();
-                        const currentList = roomState.settings.customQuestions || [];
-                        const nextList: CustomEquationItem[] = [
-                          ...currentList,
-                          {
-                            id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-                            termA: a,
-                            operator: operatorInput,
-                            termB: b,
-                            correctAnswer: ans,
-                          },
-                        ];
-                        onAdminSetCustomQuestions(nextList, true);
-                      }}
-                      className="tv-focusable cube-3d w-full min-h-[46px] px-4 py-2.5 rounded-2xl bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white font-display font-black text-sm flex items-center justify-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Adicionar Conta à Lista da Partida</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Right Column: Active Custom Questions Queue & Launch Button */}
-                <div className="lg:col-span-7 rounded-3xl bg-[#071936] border-2 border-white/20 p-5 flex flex-col justify-between space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/15 pb-3">
-                      <div>
-                        <div className="text-xs font-black uppercase text-[#FFD600]">
-                          Contas Cadastradas para a Próxima Partida (
-                          {roomState.settings.customQuestions?.length || 0})
-                        </div>
-                        <p className="text-xs text-sky-200 font-semibold">
-                          Quando ativo, a partida exibirá exatamente estas contas em sequência.
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {(roomState.settings.customQuestions?.length || 0) > 0 && (
-                          <>
-                            <button
-                              type="button"
-                              data-tv-focusable="true"
-                              onClick={() => {
-                                soundEngine.playTick();
-                                onAdminSetCustomQuestions(
-                                  roomState.settings.customQuestions || [],
-                                  !roomState.settings.useCustomQuestions
-                                );
-                              }}
-                              className={`tv-focusable px-3.5 py-1.5 rounded-xl text-xs font-black border-2 ${
-                                roomState.settings.useCustomQuestions
-                                  ? 'bg-[#22C55E] text-white border-white'
-                                  : 'bg-slate-800 text-slate-300 border-slate-600'
-                              }`}
+                      ) : (
+                        <div className="grid grid-cols-3 gap-2 overflow-y-auto pr-1 flex-1 content-start">
+                          {(roomState.settings.customQuestions || []).map((qItem, idx) => (
+                            <div
+                              key={qItem.id}
+                              className="rounded-xl bg-[#0F172A] border border-sky-400/40 px-3 py-2 flex items-center justify-between gap-2"
                             >
-                              {roomState.settings.useCustomQuestions
-                                ? '✓ Modo Professor ATIVO'
-                                : 'Modo Professor Inativo'}
-                            </button>
-
-                            <button
-                              type="button"
-                              data-tv-focusable="true"
-                              onClick={() => {
-                                soundEngine.playTick();
-                                onAdminSetCustomQuestions([], false);
-                              }}
-                              className="tv-focusable px-3 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-500 text-white text-xs font-black flex items-center gap-1"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Limpar Tudo</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {(roomState.settings.customQuestions?.length || 0) === 0 ? (
-                      <div className="py-10 text-center space-y-2 rounded-2xl bg-slate-900/70 border border-dashed border-white/20">
-                        <BookOpen className="w-8 h-8 text-sky-400 mx-auto" />
-                        <div className="font-display font-black text-base text-white">
-                          Nenhuma conta personalizada cadastrada
-                        </div>
-                        <p className="text-xs text-sky-200 max-w-md mx-auto">
-                          Clique em um pacote ao lado (ex: <strong>Tabuada do 7 e 8</strong>) ou
-                          adicione contas específicas para criar sua aula gamificada!
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[250px] overflow-y-auto pr-1">
-                        {(roomState.settings.customQuestions || []).map((qItem, idx) => (
-                          <div
-                            key={qItem.id}
-                            className="rounded-2xl bg-[#0F172A] border-2 border-sky-400/40 px-3.5 py-2.5 flex items-center justify-between gap-2"
-                          >
-                            <div>
-                              <div className="text-[10px] font-black text-sky-400 uppercase">
-                                Atividade #{idx + 1}
-                              </div>
-                              <div className="font-mono font-black text-base text-white tabular-nums">
-                                {qItem.termA} {qItem.operator} {qItem.termB} ={' '}
-                                <span className="text-[#FFD600]">{qItem.correctAnswer}</span>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              data-tv-focusable="true"
-                              onClick={() => {
-                                const filtered = (roomState.settings.customQuestions || []).filter(
-                                  (item) => item.id !== qItem.id
-                                );
-                                onAdminSetCustomQuestions(filtered, filtered.length > 0);
-                              }}
-                              className="tv-focusable p-1.5 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white"
-                              title="Remover conta"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-white/15 flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-xs font-bold text-sky-200">
-                      {roomState.settings.useCustomQuestions &&
-                      (roomState.settings.customQuestions?.length || 0) > 0
-                        ? `Pronto para jogar ${roomState.settings.customQuestions?.length} atividades personalizadas!`
-                        : 'Usando gerador automático dos Módulos 1 a 4.'}
-                    </span>
-
-                    {(roomState.settings.customQuestions?.length || 0) > 0 && (
-                      <button
-                        type="button"
-                        data-tv-focusable="true"
-                        onClick={() => {
-                          onAdminSetCustomQuestions(
-                            roomState.settings.customQuestions || [],
-                            true
-                          );
-                          setShowAdminPanel(false);
-                          soundEngine.playNewQuestion();
-                          onStartGame();
-                        }}
-                        className="tv-focusable cube-3d min-h-[48px] px-6 py-2.5 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white font-display font-black text-sm flex items-center gap-2"
-                      >
-                        <Play className="w-4 h-4 fill-current" />
-                        <span>Iniciar Partida Personalizada Agora!</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ABA 3: RELATÓRIO PEDAGÓGICO PÓS-JOGO POR OPERAÇÃO (+, −, ×, ÷) */}
-            {adminTab === 'PEDAGOGICAL_REPORT' && (
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-[#071936] border border-white/15 p-4 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-black uppercase text-[#FFD600]">
-                      Acompanhamento Pedagógico para Pais e Professores
-                    </div>
-                    <p className="text-xs text-sky-200 font-semibold">
-                      Percentual de acerto de cada jogador separado por operação matemática (Adição
-                      +, Subtração −, Multiplicação × e Divisão ÷).
-                    </p>
-                  </div>
-                </div>
-
-                {roomState.players.length === 0 ? (
-                  <div className="py-12 text-center rounded-3xl bg-[#071936] border-2 border-dashed border-white/20 space-y-2">
-                    <BarChart3 className="w-10 h-10 text-sky-400 mx-auto" />
-                    <div className="font-display font-black text-lg text-white">
-                      Nenhum jogador conectado no momento
-                    </div>
-                    <p className="text-xs text-sky-200">
-                      Assim que os jogadores responderem às atividades, o desempenho detalhado por
-                      operação aparecerá aqui.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {roomState.players.map((player) => {
-                      const stats = player.operationStats || createEmptyOperationStats();
-                      const overallAcc =
-                        player.totalAnswered > 0
-                          ? Math.round((player.correctCount / player.totalAnswered) * 100)
-                          : 0;
-                      const avgSec =
-                        player.totalAnswered > 0
-                          ? (player.totalAnswerTimeMs / player.totalAnswered / 1000).toFixed(1)
-                          : '0.0';
-
-                      const opMetaList: {
-                        op: MathOperator;
-                        label: string;
-                        color: string;
-                      }[] = [
-                        { op: '+', label: 'Adição (+)', color: '#22C55E' },
-                        { op: '-', label: 'Subtração (−)', color: '#F97316' },
-                        { op: '×', label: 'Multiplicação (×)', color: '#A855F7' },
-                        { op: '÷', label: 'Divisão (÷)', color: '#EC4899' },
-                      ];
-
-                      return (
-                        <div
-                          key={player.id}
-                          className="rounded-3xl bg-[#071936] border-2 border-white/25 p-4 space-y-3.5 panel-3d"
-                        >
-                          <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-                            <div className="flex items-center gap-3">
-                              <AvatarIcon avatarId={player.avatarId} className="w-14 h-14 shrink-0" />
                               <div>
-                                <div className="font-display font-black text-lg text-white">
-                                  {player.name}
+                                <div className="text-[9px] font-black text-sky-400 uppercase">
+                                  Atividade #{idx + 1}
                                 </div>
-                                <div className="text-xs font-bold text-sky-300 tabular-nums">
-                                  Precisão Geral:{' '}
-                                  <strong className="text-[#FFD600]">{overallAcc}%</strong> (
-                                  {player.correctCount}/{player.totalAnswered}) · Tempo Médio:{' '}
-                                  <strong className="text-white">{avgSec}s</strong>
+                                <div className="font-mono font-black text-sm text-white tabular-nums">
+                                  {qItem.termA} {qItem.operator} {qItem.termB} ={' '}
+                                  <span className="text-[#FFD600]">{qItem.correctAnswer}</span>
                                 </div>
                               </div>
+                              <button
+                                type="button"
+                                data-tv-focusable="true"
+                                onClick={() => {
+                                  const filtered = (roomState.settings.customQuestions || []).filter(
+                                    (item) => item.id !== qItem.id
+                                  );
+                                  onAdminSetCustomQuestions(filtered, filtered.length > 0);
+                                }}
+                                className="tv-focusable p-1 rounded-lg bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white"
+                                title="Remover conta"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-black border ${
-                                player.totalAnswered === 0
-                                  ? 'bg-slate-800 text-slate-300 border-slate-600'
-                                  : overallAcc >= 80
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400'
-                                  : overallAcc >= 50
-                                  ? 'bg-amber-500/20 text-[#FFD600] border-amber-400'
-                                  : 'bg-rose-500/20 text-rose-300 border-rose-400'
-                              }`}
-                            >
-                              {player.totalAnswered === 0
-                                ? 'Sem Respostas'
-                                : overallAcc >= 80
-                                ? '🌟 Dominado'
-                                : overallAcc >= 50
-                                ? '📈 Em Evolução'
-                                : '🎯 Reforçar Treino'}
-                            </span>
-                          </div>
+                    <div className="pt-2 border-t border-white/15 flex items-center justify-between gap-2 shrink-0">
+                      <span className="text-[11px] font-bold text-sky-200">
+                        {roomState.settings.useCustomQuestions &&
+                        (roomState.settings.customQuestions?.length || 0) > 0
+                          ? `Pronto para jogar ${roomState.settings.customQuestions?.length} atividades personalizadas!`
+                          : 'Usando gerador automático dos Módulos 1 a 4.'}
+                      </span>
 
-                          <div className="grid grid-cols-2 gap-2.5">
-                            {opMetaList.map(({ op, label, color }) => {
-                              const item = stats[op] || { correct: 0, total: 0 };
-                              const pct =
-                                item.total > 0 ? Math.round((item.correct / item.total) * 100) : null;
+                      {(roomState.settings.customQuestions?.length || 0) > 0 && (
+                        <button
+                          type="button"
+                          data-tv-focusable="true"
+                          onClick={() => {
+                            onAdminSetCustomQuestions(
+                              roomState.settings.customQuestions || [],
+                              true
+                            );
+                            setShowAdminPanel(false);
+                            soundEngine.playNewQuestion();
+                            onStartGame();
+                          }}
+                          className="tv-focusable cube-3d min-h-[40px] px-5 py-1.5 rounded-full bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white font-display font-black text-xs flex items-center gap-1.5 whitespace-nowrap"
+                        >
+                          <Play className="w-4 h-4 fill-current" />
+                          <span>Iniciar Partida Personalizada Agora!</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                              return (
-                                <div
-                                  key={op}
-                                  className="rounded-2xl bg-[#0F172A] border border-white/15 p-3 space-y-1.5"
-                                >
-                                  <div className="flex items-center justify-between text-xs font-black">
-                                    <span className="text-white">{label}</span>
-                                    <span
-                                      style={{ color: pct !== null ? color : '#94A3B8' }}
-                                      className="font-mono text-sm tabular-nums"
-                                    >
-                                      {pct !== null ? `${pct}%` : '—'}
-                                    </span>
+              {/* ABA 3: RELATÓRIO PEDAGÓGICO PÓS-JOGO POR OPERAÇÃO (+, −, ×, ÷) */}
+              {adminTab === 'PEDAGOGICAL_REPORT' && (
+                <div className="flex-1 flex flex-col justify-between gap-2.5 min-h-0">
+                  <div className="rounded-xl bg-[#071936] border border-white/15 px-3.5 py-2 flex items-center justify-between gap-3 shrink-0">
+                    <div>
+                      <div className="text-[11px] font-black uppercase text-[#FFD600]">
+                        Acompanhamento Pedagógico para Pais e Professores
+                      </div>
+                      <p className="text-[11px] text-sky-200 font-semibold">
+                        Percentual de acerto de cada jogador separado por operação matemática (Adição
+                        +, Subtração −, Multiplicação × e Divisão ÷).
+                      </p>
+                    </div>
+                  </div>
+
+                  {roomState.players.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center rounded-2xl bg-[#071936] border-2 border-dashed border-white/20 space-y-1.5 p-6">
+                      <BarChart3 className="w-9 h-9 text-sky-400" />
+                      <div className="font-display font-black text-base text-white">
+                        Nenhum jogador conectado no momento
+                      </div>
+                      <p className="text-xs text-sky-200">
+                        Assim que os jogadores responderem às atividades, o desempenho detalhado por
+                        operação aparecerá aqui.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex-1 grid grid-cols-2 gap-3 overflow-y-auto min-h-0">
+                      {roomState.players.map((player) => {
+                        const stats = player.operationStats || createEmptyOperationStats();
+                        const overallAcc =
+                          player.totalAnswered > 0
+                            ? Math.round((player.correctCount / player.totalAnswered) * 100)
+                            : 0;
+                        const avgSec =
+                          player.totalAnswered > 0
+                            ? (player.totalAnswerTimeMs / player.totalAnswered / 1000).toFixed(1)
+                            : '0.0';
+
+                        const opMetaList: {
+                          op: MathOperator;
+                          label: string;
+                          color: string;
+                        }[] = [
+                          { op: '+', label: 'Adição (+)', color: '#22C55E' },
+                          { op: '-', label: 'Subtração (−)', color: '#F97316' },
+                          { op: '×', label: 'Multiplicação (×)', color: '#A855F7' },
+                          { op: '÷', label: 'Divisão (÷)', color: '#EC4899' },
+                        ];
+
+                        return (
+                          <div
+                            key={player.id}
+                            className="rounded-2xl bg-[#071936] border-2 border-white/25 p-3 flex flex-col justify-between space-y-2 panel-3d"
+                          >
+                            <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <AvatarIcon
+                                  avatarId={player.avatarId}
+                                  className="w-10 h-10 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <div className="font-display font-black text-sm text-white truncate">
+                                    {player.name}
                                   </div>
-
-                                  <div className="w-full h-2.5 rounded-full bg-slate-900 overflow-hidden border border-white/10">
-                                    <div
-                                      style={{
-                                        width: `${pct !== null ? Math.max(6, pct) : 0}%`,
-                                        backgroundColor: color,
-                                      }}
-                                      className="h-full rounded-full transition-all duration-300"
-                                    />
-                                  </div>
-
                                   <div className="text-[11px] font-bold text-sky-300 tabular-nums">
-                                    {item.total > 0
-                                      ? `${item.correct} acerto(s) em ${item.total} conta(s)`
-                                      : 'Nenhuma conta realizada'}
+                                    Precisão:{' '}
+                                    <strong className="text-[#FFD600]">{overallAcc}%</strong> (
+                                    {player.correctCount}/{player.totalAnswered}) · Tempo:{' '}
+                                    <strong className="text-white">{avgSec}s</strong>
                                   </div>
                                 </div>
-                              );
-                            })}
+                              </div>
+
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border shrink-0 ${
+                                  player.totalAnswered === 0
+                                    ? 'bg-slate-800 text-slate-300 border-slate-600'
+                                    : overallAcc >= 80
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400'
+                                    : overallAcc >= 50
+                                    ? 'bg-amber-500/20 text-[#FFD600] border-amber-400'
+                                    : 'bg-rose-500/20 text-rose-300 border-rose-400'
+                                }`}
+                              >
+                                {player.totalAnswered === 0
+                                  ? 'Sem Respostas'
+                                  : overallAcc >= 80
+                                  ? '🌟 Dominado'
+                                  : overallAcc >= 50
+                                  ? '📈 Em Evolução'
+                                  : '🎯 Reforçar'}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              {opMetaList.map(({ op, label, color }) => {
+                                const item = stats[op] || { correct: 0, total: 0 };
+                                const pct =
+                                  item.total > 0
+                                    ? Math.round((item.correct / item.total) * 100)
+                                    : null;
+
+                                return (
+                                  <div
+                                    key={op}
+                                    className="rounded-xl bg-[#0F172A] border border-white/15 px-2.5 py-1.5 space-y-1"
+                                  >
+                                    <div className="flex items-center justify-between text-[11px] font-black">
+                                      <span className="text-white">{label}</span>
+                                      <span
+                                        style={{ color: pct !== null ? color : '#94A3B8' }}
+                                        className="font-mono text-xs tabular-nums"
+                                      >
+                                        {pct !== null ? `${pct}%` : '—'}
+                                      </span>
+                                    </div>
+
+                                    <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden border border-white/10">
+                                      <div
+                                        style={{
+                                          width: `${pct !== null ? Math.max(6, pct) : 0}%`,
+                                          backgroundColor: color,
+                                        }}
+                                        className="h-full rounded-full transition-all duration-300"
+                                      />
+                                    </div>
+
+                                    <div className="text-[10px] font-bold text-sky-300 tabular-nums">
+                                      {item.total > 0
+                                        ? `${item.correct}/${item.total} acertos`
+                                        : 'Sem respostas'}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* PARENTAL GATE MODAL */}
-      {showParentalGate && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6">
-          <div className="max-w-md w-full rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] p-6 text-center space-y-4 shadow-2xl">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#FFD600]/20 text-[#FFD600] mx-auto">
-              <Lock className="w-6 h-6" />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <h2 className="font-display font-black text-2xl text-white">
-              Verificação Parental (MagnetSoftware)
-            </h2>
-            {!parentalUnlocked ? (
-              <>
-                <p className="text-xs font-semibold text-sky-200">
-                  Para acessar as configurações de duração das rodadas, responda: Quanto é{' '}
-                  <strong>12 × 4</strong>?
-                </p>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={parentalAnswer}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setParentalAnswer(val);
-                    if (val.trim() === '48') {
-                      setParentalUnlocked(true);
-                    }
-                  }}
-                  placeholder="Resposta"
-                  className="w-36 h-12 mx-auto block rounded-xl bg-slate-900 border-2 border-sky-400 text-center font-mono text-xl font-black text-white"
-                />
-              </>
-            ) : (
-              <div className="space-y-3 text-left bg-slate-900 p-4 rounded-2xl border border-slate-700">
-                <div className="text-xs font-black text-[#22C55E]">
-                  ✓ Acesso dos Pais Liberado
-                </div>
-                <div className="flex items-center justify-between text-xs font-bold text-white">
-                  <span>Quantidade de Rodadas por Partida:</span>
-                  <div className="flex gap-1.5">
-                    {[5, 8, 10].map((r) => (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => onConfigureGame({ totalRounds: r })}
-                        className={`px-3 py-1 rounded-lg font-mono ${
-                          roomState.settings.totalRounds === r
-                            ? 'bg-[#FFD600] text-slate-950 font-black'
-                            : 'bg-slate-800 text-white'
-                        }`}
-                      >
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Ambiente 100% seguro: sem anúncios externos, sem coleta de dados pessoais e sem
-                  links externos desprotegidos.
-                </p>
-              </div>
-            )}
-            <button
-              type="button"
-              data-tv-focusable="true"
-              onClick={() => {
-                setShowParentalGate(false);
-                setParentalAnswer('');
-                setParentalUnlocked(false);
-              }}
-              className="tv-focusable w-full min-h-[46px] rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-display font-bold text-sm"
-            >
-              Fechar
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* PAUSE MODAL */}
-      {roomState.status === 'PAUSED' && (
-        <div className="fixed inset-0 z-30 bg-black/80 flex items-center justify-center p-6">
-          <div className="max-w-md w-full rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] p-6 text-center space-y-5 shadow-2xl">
-            <h2 className="font-display font-black text-3xl text-white">Jogo Pausado</h2>
-            <p className="text-sm font-semibold text-sky-200">
-              Todos os celulares continuam conectados na sala <strong>{roomState.code}</strong>.
-            </p>
-            <div className="flex flex-col gap-3">
+        {/* PARENTAL GATE MODAL (Inside scaled TV stage) */}
+        {showParentalGate && (
+          <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center p-6">
+            <div className="max-w-md w-full rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] p-6 text-center space-y-4 shadow-2xl">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#FFD600]/20 text-[#FFD600] mx-auto">
+                <Lock className="w-6 h-6" />
+              </div>
+              <h2 className="font-display font-black text-2xl text-white">
+                Verificação Parental (MagnetSoftware)
+              </h2>
+              {!parentalUnlocked ? (
+                <>
+                  <p className="text-xs font-semibold text-sky-200">
+                    Para acessar as configurações de duração das rodadas, responda: Quanto é{' '}
+                    <strong>12 × 4</strong>?
+                  </p>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={parentalAnswer}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setParentalAnswer(val);
+                      if (val.trim() === '48') {
+                        setParentalUnlocked(true);
+                      }
+                    }}
+                    placeholder="Resposta"
+                    className="w-36 h-12 mx-auto block rounded-xl bg-slate-900 border-2 border-sky-400 text-center font-mono text-xl font-black text-white"
+                  />
+                </>
+              ) : (
+                <div className="space-y-3 text-left bg-slate-900 p-4 rounded-2xl border border-slate-700">
+                  <div className="text-xs font-black text-[#22C55E]">
+                    ✓ Acesso dos Pais Liberado
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-bold text-white">
+                    <span>Quantidade de Rodadas por Partida:</span>
+                    <div className="flex gap-1.5">
+                      {[5, 8, 10].map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => onConfigureGame({ totalRounds: r })}
+                          className={`px-3 py-1 rounded-lg font-mono ${
+                            roomState.settings.totalRounds === r
+                              ? 'bg-[#FFD600] text-slate-950 font-black'
+                              : 'bg-slate-800 text-white'
+                          }`}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Ambiente 100% seguro: sem anúncios externos, sem coleta de dados pessoais e sem
+                    links externos desprotegidos.
+                  </p>
+                </div>
+              )}
               <button
                 type="button"
                 data-tv-focusable="true"
-                data-tv-primary="true"
-                onClick={onTogglePause}
-                className="tv-focusable cube-3d w-full min-h-[52px] rounded-2xl bg-[#22C55E] text-white font-display font-black text-base"
+                onClick={() => {
+                  setShowParentalGate(false);
+                  setParentalAnswer('');
+                  setParentalUnlocked(false);
+                }}
+                className="tv-focusable w-full min-h-[46px] rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-display font-bold text-sm"
               >
-                Continuar Brincando (Enter)
-              </button>
-              <button
-                type="button"
-                data-tv-focusable="true"
-                onClick={onRestartGame}
-                className="tv-focusable w-full min-h-[48px] rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-display font-bold text-sm"
-              >
-                Escolher Outro Módulo
+                Fechar
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* PIP VIRTUAL SMARTPHONE CONTROLLER */}
-      {showVirtualPhone && (
-        <aside
-          aria-label="Simulador de Controle no Celular"
-          className="fixed bottom-4 right-4 z-40 w-[365px] h-[645px] max-h-[89vh] rounded-[32px] bg-[#071936] border-4 border-[#FFD600] shadow-2xl overflow-hidden flex flex-col"
-        >
-          <div className="bg-[#0A192F] px-4 py-2 flex items-center justify-between border-b border-white/15">
-            <span className="text-xs font-black text-[#FFD600] flex items-center gap-1.5">
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>Controle Celular (Simulador)</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowVirtualPhone(false)}
-              className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white"
-              aria-label="Fechar simulador de celular"
-            >
-              <X className="w-4 h-4" />
-            </button>
+        {/* PAUSE MODAL (Inside scaled TV stage) */}
+        {roomState.status === 'PAUSED' && (
+          <div className="absolute inset-0 z-30 bg-black/80 flex items-center justify-center p-6">
+            <div className="max-w-md w-full rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] p-6 text-center space-y-5 shadow-2xl">
+              <h2 className="font-display font-black text-3xl text-white">Jogo Pausado</h2>
+              <p className="text-sm font-semibold text-sky-200">
+                Todos os celulares continuam conectados na sala <strong>{roomState.code}</strong>.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  data-tv-focusable="true"
+                  data-tv-primary="true"
+                  onClick={onTogglePause}
+                  className="tv-focusable cube-3d w-full min-h-[52px] rounded-2xl bg-[#22C55E] text-white font-display font-black text-base"
+                >
+                  Continuar Brincando (Enter)
+                </button>
+                <button
+                  type="button"
+                  data-tv-focusable="true"
+                  onClick={onRestartGame}
+                  className="tv-focusable w-full min-h-[48px] rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-display font-bold text-sm"
+                >
+                  Escolher Outro Módulo
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto">
-            <MobileControllerView
-              roomState={roomState}
-              playerId={simPlayerId}
-              initialRoomCode={roomState.code}
-              errorMessage={simError}
-              onJoinRoom={onSimJoin}
-              onSelectAnswer={onSimAnswer}
-              onUsePowerUp={onSimUsePowerUp}
-              onActivateVisualHint={onSimActivateVisualHint}
-              onContinueDecision={onSimContinueDecision}
-              onConfigureGame={onConfigureGame}
-              onStartGame={onStartGame}
-              onRestartGame={onRestartGame}
-              onNextRound={onNextRound}
-              isEmbeddedPiP={true}
-            />
-          </div>
-        </aside>
-      )}
+        )}
+
+        {/* PIP VIRTUAL SMARTPHONE CONTROLLER (Inside scaled TV stage) */}
+        {showVirtualPhone && (
+          <aside
+            aria-label="Simulador de Controle no Celular"
+            className="absolute bottom-3 right-3 z-40 w-[350px] h-[610px] max-h-[92%] rounded-[28px] bg-[#071936] border-4 border-[#FFD600] shadow-2xl overflow-hidden flex flex-col"
+          >
+            <div className="bg-[#0A192F] px-4 py-2 flex items-center justify-between border-b border-white/15">
+              <span className="text-xs font-black text-[#FFD600] flex items-center gap-1.5">
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>Controle Celular (Simulador)</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowVirtualPhone(false)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white"
+                aria-label="Fechar simulador de celular"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <MobileControllerView
+                roomState={roomState}
+                playerId={simPlayerId}
+                initialRoomCode={roomState.code}
+                errorMessage={simError}
+                onJoinRoom={onSimJoin}
+                onSelectAnswer={onSimAnswer}
+                onUsePowerUp={onSimUsePowerUp}
+                onActivateVisualHint={onSimActivateVisualHint}
+                onContinueDecision={onSimContinueDecision}
+                onConfigureGame={onConfigureGame}
+                onStartGame={onStartGame}
+                onRestartGame={onRestartGame}
+                onNextRound={onNextRound}
+                isEmbeddedPiP={true}
+              />
+            </div>
+          </aside>
+        )}
+      </div>
     </div>
   );
 };

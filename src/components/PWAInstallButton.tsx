@@ -28,11 +28,11 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ compact = fa
             data-tv-focusable="true"
             onClick={handleInstallClick}
             title="Instalar Aplicativo PWA na TV ou Celular"
-            className={`tv-focusable cube-3d rounded-xl bg-[#22C55E] hover:bg-[#16A34A] border border-white text-white font-display font-black text-xs flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              compact ? 'min-h-[42px] px-2.5 py-1.5' : 'min-h-[40px] px-3 py-1.5'
+            className={`tv-focusable cube-3d rounded-xl bg-[#22C55E] hover:bg-[#16A34A] border-2 border-white text-white font-display font-black text-[11px] flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              compact ? 'min-h-[36px] px-2.5 py-1' : 'min-h-[36px] px-3 py-1'
             }`}
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-3.5 h-3.5" />
             <span>{compact ? 'Instalar' : 'Instalar App (PWA)'}</span>
           </button>
         )}
@@ -43,16 +43,16 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ compact = fa
             data-tv-focusable="true"
             onClick={toggleFullscreen}
             title="Alternar Tela Cheia na Fire TV"
-            className="tv-focusable min-h-[40px] min-w-[40px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
+            className="tv-focusable min-h-[36px] min-w-[36px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-white"
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
         )}
       </div>
 
       {showGuideModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] p-6 text-left space-y-4 panel-3d">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-[#0F172A] border-3 border-[#FFD600] p-5 text-left space-y-3.5 panel-3d">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-[#FFD600]">
                 <Tv className="w-6 h-6" />
