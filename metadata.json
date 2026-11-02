@@ -1,0 +1,6 @@
+{
+  "name": "MathShow TV — Quiz de Matemática para Fire TV & Celular",
+  "description": "Game show interativo de adição e subtração para Amazon Fire TV Stick com controle remoto em tempo real via celular para 1 a 4 jogadores via QR Code e PIN.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
